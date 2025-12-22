@@ -284,6 +284,17 @@ export default function Home() {
             {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Photos'}`}
           </button>
         </div>
+
+        {/* Version Number */}
+        <div style={{
+          textAlign: 'center',
+          marginTop: '40px',
+          padding: '20px',
+          color: '#999',
+          fontSize: '12px'
+        }}>
+          Version 1.0.1
+        </div>
       </div>
     </div>
   );
