@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable standalone output for better deployment
-  output: 'standalone',
+  // Removed standalone output - using standard Next.js build for Cloud Run
+  // This works better with Docker multi-stage builds
   
   // Environment variables
   env: {

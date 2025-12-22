@@ -21,16 +21,23 @@ gcloud config set project YOUR_PROJECT_ID
 gcloud services enable cloudbuild.googleapis.com run.googleapis.com storage-component.googleapis.com
 
 # 3. Create GCS bucket (for file storage)
-gsutil mb -p YOUR_PROJECT_ID -c STANDARD -l us-central1 gs://YOUR_BUCKET_NAME
+# Make sure project is set: gcloud config set project YOUR_PROJECT_ID
+# IMPORTANT: Bucket name must be lowercase, use hyphens/underscores only
+# Example: gs://eventgrapher-storage or gs://eventgrapher_storage
+gsutil mb -c STANDARD -l us-central1 gs://YOUR_BUCKET_NAME
 
-# 4. Create service account and key
-gcloud iam service-accounts create eventgrapher-storage \
-    --display-name="EventGrapher Storage"
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-    --member="serviceAccount:eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/storage.admin"
-gcloud iam service-accounts keys create service-account-key.json \
-    --iam-account=eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com
+# 4. Verify your project ID first
+gcloud config get-value project
+
+# 5. Create service account and key (replace YOUR_PROJECT_ID with the project ID from step 4)
+# Windows: Run each command on a single line (no backslash line continuation)
+# PowerShell/Linux: You can use backslash for line continuation
+gcloud iam service-accounts create eventgrapher-storage --display-name="EventGrapher Storage"
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/storage.admin"
+gcloud iam service-accounts keys create service-account-key.json --iam-account=eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com
+
+# If you get "Unknown service account" error, check existing accounts:
+# gcloud iam service-accounts list
 ```
 
 ## Deploy Backend

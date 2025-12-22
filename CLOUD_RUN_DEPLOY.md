@@ -27,34 +27,105 @@ gcloud config set project YOUR_PROJECT_ID
 gcloud services enable cloudbuild.googleapis.com
 gcloud services enable run.googleapis.com
 gcloud services enable storage-component.googleapis.com
+
+# Grant Cloud Build service account permission to deploy to Cloud Run
+# Get your project number
+PROJECT_NUMBER=$(gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)")
+
+# Grant Cloud Run Admin role to Cloud Build service account
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+    --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+    --role="roles/run.admin"
+
+# Grant Service Account User role (needed to deploy services)
+gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
+    --member="serviceAccount:${PROJECT_NUMBER}@cloudbuild.gserviceaccount.com" \
+    --role="roles/iam.serviceAccountUser"
+```
+
+**Windows Command Prompt (cmd.exe) - Run these separately:**
+```cmd
+REM Get project number
+gcloud projects describe YOUR_PROJECT_ID --format="value(projectNumber)"
+
+REM Replace PROJECT_NUMBER with the output above, then run:
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:PROJECT_NUMBER@cloudbuild.gserviceaccount.com" --role="roles/run.admin"
+
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:PROJECT_NUMBER@cloudbuild.gserviceaccount.com" --role="roles/iam.serviceAccountUser"
 ```
 
 ### 2. Create Google Cloud Storage Bucket (for file storage)
 
+**Bucket Naming Requirements:**
+- Must contain only **lowercase letters**, numbers, hyphens (-), and underscores (_)
+- Must start and end with a letter or number
+- Must be 3-63 characters long
+- Must be globally unique across all Google Cloud Storage buckets
+- **Cannot contain uppercase letters or spaces**
+
+Examples of valid bucket names:
+- `eventgrapher-storage`
+- `eventgrapher_storage`
+- `eventgrapher-storage-prod`
+- `my-eventgrapher-bucket-123`
+
 ```bash
 # Create a bucket (replace YOUR_BUCKET_NAME with your desired name)
-gsutil mb -p YOUR_PROJECT_ID -c STANDARD -l us-central1 gs://YOUR_BUCKET_NAME
+# Note: The project is automatically used from gcloud config
+# IMPORTANT: Use only lowercase letters, numbers, hyphens, and underscores
+gsutil mb -c STANDARD -l us-central1 gs://YOUR_BUCKET_NAME
+
+# Alternative: If you need to specify project explicitly
+# gsutil mb -p YOUR_PROJECT_ID -c STANDARD -l us-central1 gs://YOUR_BUCKET_NAME
 
 # Make the bucket public (optional, if you want direct access to images)
 # Or use signed URLs (recommended for security)
 ```
 
+**Important**: Make sure you've set your project with `gcloud config set project YOUR_PROJECT_ID` before running this command, or use the alternative command with the `-p` flag.
+
 ### 3. Create Service Account for Cloud Storage Access
 
-```bash
-# Create service account
-gcloud iam service-accounts create eventgrapher-storage \
-    --display-name="EventGrapher Storage Service Account"
+**Windows Command Prompt (cmd.exe):**
+```cmd
+REM First, verify your project ID
+gcloud config get-value project
 
-# Grant Storage Admin role
-gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
-    --member="serviceAccount:eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
-    --role="roles/storage.admin"
+REM Create service account (use ^ for line continuation in cmd)
+REM Replace YOUR_PROJECT_ID with your actual project ID from the command above
+gcloud iam service-accounts create eventgrapher-storage --display-name="EventGrapher Storage Service Account"
 
-# Create and download key
-gcloud iam service-accounts keys create service-account-key.json \
-    --iam-account=eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com
+REM Grant Storage Admin role (replace YOUR_PROJECT_ID with your actual project ID)
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/storage.admin"
+
+REM Create and download key (replace YOUR_PROJECT_ID with your actual project ID)
+gcloud iam service-accounts keys create service-account-key.json --iam-account=eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com
 ```
+
+**Troubleshooting:** If you get "Unknown service account" error:
+1. Check your project ID: `gcloud config get-value project`
+2. List existing service accounts: `gcloud iam service-accounts list`
+3. Make sure the service account email uses your actual project ID, not "eventgrapher"
+
+**Windows PowerShell or Linux/macOS:**
+```bash
+# First, verify your project ID
+gcloud config get-value project
+
+# Create service account (replace YOUR_PROJECT_ID with your actual project ID)
+gcloud iam service-accounts create eventgrapher-storage --display-name="EventGrapher Storage Service Account"
+
+# Grant Storage Admin role (replace YOUR_PROJECT_ID with your actual project ID)
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID --member="serviceAccount:eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com" --role="roles/storage.admin"
+
+# Create and download key (replace YOUR_PROJECT_ID with your actual project ID)
+gcloud iam service-accounts keys create service-account-key.json --iam-account=eventgrapher-storage@YOUR_PROJECT_ID.iam.gserviceaccount.com
+```
+
+**Note:** 
+- Replace `YOUR_PROJECT_ID` with your actual Google Cloud project ID (use `gcloud config get-value project` to find it)
+- The service account email format is: `service-account-name@PROJECT_ID.iam.gserviceaccount.com`
+- If you get "Unknown service account" error, verify the service account exists: `gcloud iam service-accounts list`
 
 ## Deployment Methods
 
@@ -65,20 +136,48 @@ This method automatically builds and deploys your services using Cloud Build.
 #### Deploy Backend
 
 ```bash
-# From the project root directory
-gcloud builds submit --config=cloudbuild-backend.yaml --substitutions=_REGION=us-central1
+# From the project root directory (where cloudbuild-backend.yaml is located)
+# Make sure you're in the EventGrapher directory (not backend or frontend subdirectory)
+
+gcloud builds submit --config=cloudbuild-backend.yaml --substitutions=_REGION=us-central1,_STORAGE_BUCKET=YOUR_BUCKET_NAME
 ```
+
+**Note:** Replace `YOUR_BUCKET_NAME` with your actual GCS bucket name (without the `gs://` prefix).
+
+**If build fails:**
+- Check the build logs: `gcloud builds log <BUILD_ID>` (use the ID from the error message)
+- Verify you're in the project root directory (should contain both `backend/` and `frontend/` folders)
+- Check that `backend/Dockerfile` and `backend/requirements.txt` exist
 
 #### Deploy Frontend
 
-```bash
-# Deploy backend first, then note the backend URL
-# Update cloudbuild-frontend.yaml with the backend URL, then:
+**After deploying the backend, you'll get a URL in the output. The URL format looks like:**
+```
+https://eventgrapher-backend-XXXXX-XX.a.run.app
+```
+Where `XXXXX-XX` is a unique identifier assigned by Cloud Run (e.g., `abc123-uc`, `xyz789-ew`).
 
-gcloud builds submit --config=cloudbuild-frontend.yaml --substitutions=_REGION=us-central1
+**To get your backend URL:**
+1. It will be displayed in the output after deployment
+2. Or run: `gcloud run services describe eventgrapher-backend --region us-central1 --format="value(status.url)"`
+3. Or check in Cloud Console: Cloud Run → eventgrapher-backend → Details tab
+
+**To get your frontend URL (after deploying frontend):**
+1. It will be displayed in the output after deployment
+2. Or run: `gcloud run services describe eventgrapher-frontend --region us-central1 --format="value(status.url)"`
+3. Or check in Cloud Console: Cloud Run → eventgrapher-frontend → Details tab
+4. Or list all services: `gcloud run services list --region us-central1`
+
+**Then deploy the frontend with the backend URL:**
+```bash
+# Replace the URL below with your actual backend URL
+gcloud builds submit --config=cloudbuild-frontend.yaml --substitutions=_REGION=us-central1,_BACKEND_URL=https://eventgrapher-backend-XXXXX-XX.a.run.app
 ```
 
-**Important**: After deploying the backend, update the `NEXT_PUBLIC_API_URL` in `cloudbuild-frontend.yaml` with your actual backend URL.
+**Example:** If your backend URL is `https://eventgrapher-backend-abc123-uc.a.run.app`, the command would be:
+```bash
+gcloud builds submit --config=cloudbuild-frontend.yaml --substitutions=_REGION=us-central1,_BACKEND_URL=https://eventgrapher-backend-abc123-uc.a.run.app
+```
 
 ### Method 2: Manual Docker Build and Deploy
 
@@ -256,8 +355,45 @@ gcloud run services describe eventgrapher-backend --region us-central1
 
 1. **CORS Errors**: Make sure `FRONTEND_URL` matches your frontend URL exactly
 2. **Storage Not Working**: Verify GCS bucket name and credentials are correct
-3. **Build Failures**: Check Cloud Build logs for detailed error messages
+3. **Build Failures**: 
+   - View detailed build logs: `gcloud builds log <BUILD_ID>` (get BUILD_ID from the error message)
+   - Or view in Cloud Console: Cloud Build → History → Click on failed build
+   - Common causes:
+     - Dockerfile syntax errors
+     - Missing dependencies in requirements.txt
+     - Missing files that Dockerfile tries to copy
+     - Build context issues (make sure you're in the correct directory)
+   - **For backend build failures**, verify:
+     - `backend/requirements.txt` exists and is valid
+     - `backend/app/main.py` exists
+     - All Python files are present
+   - **For frontend build failures**, verify:
+     - `frontend/package.json` exists and is valid
+     - `frontend/pages/` directory exists
+     - All dependencies are listed in package.json
 4. **Connection Errors**: Verify the `NEXT_PUBLIC_API_URL` points to the correct backend URL
+
+#### Debugging Build Failures
+
+```bash
+# List recent builds to find the build ID
+gcloud builds list --limit=5
+
+# View logs for a specific build (replace BUILD_ID with actual ID from error or list)
+gcloud builds log BUILD_ID
+
+# Or use the build ID from the error message
+# Example: gcloud builds log 5d992fb3-4df0-4f2e-aa89-64d2a2238690
+
+# View only the failed step (step 2 is usually the deployment step)
+gcloud builds log BUILD_ID | grep -A 50 "Step #2"
+```
+
+**Common deployment step failures:**
+- **Missing environment variables**: Check that `_BACKEND_URL` is set correctly
+- **Permission issues**: Ensure Cloud Build has Cloud Run Admin role
+- **Service already exists**: If service exists, it will update; if there's a conflict, delete and redeploy
+- **Invalid region**: Verify the region is correct (e.g., `us-central1`)
 
 ## Cost Considerations
 
