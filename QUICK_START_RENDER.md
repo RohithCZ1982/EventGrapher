@@ -36,6 +36,7 @@ git push origin main
    - **Name**: `eventgrapher-frontend`
    - **Root Directory**: `frontend`
    - **Runtime**: `Node`
+   - **Root Directory**: `frontend` ⚠️ **IMPORTANT!**
    - **Build Command**: `npm install && npm run build`
    - **Start Command**: `npm start`
 4. Add Environment Variables:

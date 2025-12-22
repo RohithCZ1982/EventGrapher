@@ -4,6 +4,7 @@ services:
     name: eventgrapher-backend
     runtime: python
     plan: free
+    rootDir: backend
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -26,6 +27,7 @@ services:
     name: eventgrapher-frontend
     runtime: node
     plan: free
+    rootDir: frontend
     buildCommand: npm install && npm run build
     startCommand: npm start
     envVars:
