@@ -1,7 +1,7 @@
 steps:
   # Build the container image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/eventgrapher-frontend', './frontend']
+    args: ['build', '--build-arg', 'NEXT_PUBLIC_API_URL=${_BACKEND_URL}', '-t', 'gcr.io/$PROJECT_ID/eventgrapher-frontend', './frontend']
   
   # Push the container image to Container Registry
   - name: 'gcr.io/cloud-builders/docker'
@@ -23,8 +23,6 @@ steps:
       - '--allow-unauthenticated'
       - '--port'
       - '8080'
-      - '--set-env-vars'
-      - 'NEXT_PUBLIC_API_URL=${_BACKEND_URL}'
       - '--memory'
       - '512Mi'
       - '--cpu'

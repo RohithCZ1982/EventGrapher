@@ -1,13 +1,13 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-from fastapi.responses import FileResponse, RedirectResponse, Response
+from fastapi.responses import RedirectResponse, Response
 import os
 import json
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel
-from app.storage import save_file, get_file_url, file_exists, read_file_content, USE_GCS
+from app.storage import save_file, get_file_url, file_exists, read_file_content
 
 router = APIRouter()
 
@@ -73,7 +73,7 @@ async def create_or_update_event(
             # Read image content
             contents = await image.read()
             
-            # Save to storage (GCS or local)
+            # Save to Google Cloud Storage
             storage_type, storage_path = save_file(contents, image_filename, folder="events/images")
         
         # Load existing data to preserve image if new one not uploaded
@@ -119,12 +119,12 @@ def get_event():
 
 @router.get("/image/{filename}")
 async def get_event_image(filename: str):
-    """Get event image"""
+    """Get event image from Google Cloud Storage"""
     # Security: prevent path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     
-    # Try to read from storage (checks both GCS and local)
+    # Read from Google Cloud Storage
     file_content = read_file_content(filename, folder="events/images")
     
     if file_content is None:
@@ -142,11 +142,10 @@ async def get_event_image(filename: str):
     }
     media_type = media_type_map.get(ext, "image/jpeg")
     
-    # If using GCS and we got a URL, redirect to it
-    if USE_GCS and file_exists(filename, folder="events/images", storage_type="gcs"):
-        gcs_url = get_file_url(filename, folder="events/images", storage_type="gcs")
-        if gcs_url.startswith("http"):
-            return RedirectResponse(url=gcs_url)
+    # Try to get GCS URL, if it's a signed URL, redirect to it
+    gcs_url = get_file_url(filename, folder="events/images", storage_type="gcs")
+    if gcs_url.startswith("http"):
+        return RedirectResponse(url=gcs_url)
     
     # Otherwise, serve file content directly
     return Response(content=file_content, media_type=media_type)

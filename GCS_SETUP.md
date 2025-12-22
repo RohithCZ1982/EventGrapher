@@ -24,6 +24,19 @@ The Cloud Run service needs permissions to read/write to your GCS bucket.
 
 ### Get Your Project Number
 
+**Windows PowerShell:**
+```powershell
+# First, get your project ID
+$PROJECT_ID = gcloud config get-value project
+
+# Then get your project number
+$PROJECT_NUMBER = gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
+
+# Display the project number
+Write-Host "Project Number: $PROJECT_NUMBER"
+```
+
+**Linux/macOS (Bash):**
 ```bash
 # Get your project number
 gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)"
@@ -31,19 +44,22 @@ gcloud projects describe $(gcloud config get-value project) --format="value(proj
 
 ### Grant Storage Permissions
 
-Replace `YOUR_PROJECT_NUMBER` with the output from above:
+**Windows PowerShell:**
+```powershell
+# Get project ID and number
+$PROJECT_ID = gcloud config get-value project
+$PROJECT_NUMBER = gcloud projects describe $PROJECT_ID --format="value(projectNumber)"
 
+# Grant Storage Object Admin role to Cloud Run service account
+gcloud projects add-iam-policy-binding $PROJECT_ID --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" --role="roles/storage.objectAdmin"
+```
+
+**Linux/macOS (Bash):**
 ```bash
 # Grant Storage Object Admin role to Cloud Run service account
 gcloud projects add-iam-policy-binding $(gcloud config get-value project) \
-    --member="serviceAccount:YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com" \
+    --member="serviceAccount:$(gcloud projects describe $(gcloud config get-value project) --format='value(projectNumber)')-compute@developer.gserviceaccount.com" \
     --role="roles/storage.objectAdmin"
-```
-
-**Windows PowerShell:**
-```powershell
-$PROJECT_NUMBER = gcloud projects describe $(gcloud config get-value project) --format="value(projectNumber)"
-gcloud projects add-iam-policy-binding $(gcloud config get-value project) --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" --role="roles/storage.objectAdmin"
 ```
 
 ## Step 3: Deploy with GCS Configuration

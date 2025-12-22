@@ -1,20 +1,14 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
-from fastapi.responses import FileResponse, RedirectResponse, Response
-import os
-import shutil
+from fastapi.responses import RedirectResponse, Response
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 import uuid
 from datetime import datetime
-from app.storage import save_file, get_file_url, file_exists, list_files, read_file_content, get_storage_mode, USE_GCS, delete_file
+from app.storage import save_file, get_file_url, file_exists, list_files, read_file_content, get_storage_mode, delete_file
 from .photos_metadata import add_photo_metadata, filter_photos_by_user, delete_photo_metadata, get_photo_user_id
 
 router = APIRouter()
-
-# Create uploads directory if it doesn't exist (relative to backend directory)
-UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
@@ -23,10 +17,8 @@ async def upload_file(
     file: UploadFile = File(...),
     user_id: Optional[str] = Form(None)
 ):
-    """Upload a photo file"""
+    """Upload a photo file to Google Cloud Storage"""
     print(f"[UPLOAD] Received upload request for file: {file.filename}, user_id: {user_id}")
-    print(f"[UPLOAD] Upload directory: {UPLOAD_DIR}")
-    print(f"[UPLOAD] Upload directory exists: {UPLOAD_DIR.exists()}")
     
     # Check if filename exists
     if not file.filename:
@@ -60,13 +52,13 @@ async def upload_file(
         
         print(f"[UPLOAD] Read {len(contents)} bytes")
         
-        # Save to storage (GCS or local)
+        # Save to Google Cloud Storage
         storage_type, storage_path = save_file(contents, filename, folder="uploads")
         
         # Get URL for the file
         file_url = get_file_url(filename, folder="uploads", storage_type=storage_type)
         
-        print(f"[UPLOAD] SUCCESS: File saved successfully. Storage: {storage_type}, URL: {file_url}")
+        print(f"[UPLOAD] SUCCESS: File saved to GCS. Storage: {storage_type}, URL: {file_url}")
         
         # Store metadata with user_id if provided
         if user_id:
@@ -92,12 +84,12 @@ async def upload_file(
 
 @router.get("/photos/{filename}")
 async def get_photo(filename: str):
-    """Serve a photo file"""
+    """Serve a photo file from Google Cloud Storage"""
     # Security: prevent path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     
-    # Try to read from storage (checks both GCS and local)
+    # Read from Google Cloud Storage
     file_content = read_file_content(filename, folder="uploads")
     
     if file_content is None:
@@ -115,21 +107,20 @@ async def get_photo(filename: str):
     }
     media_type = media_type_map.get(ext, "image/jpeg")
     
-    # If using GCS and we got a URL, redirect to it
-    if USE_GCS and file_exists(filename, folder="uploads", storage_type="gcs"):
-        gcs_url = get_file_url(filename, folder="uploads", storage_type="gcs")
-        if gcs_url.startswith("http"):
-            return RedirectResponse(url=gcs_url)
+    # Try to get GCS URL, if it's a signed URL, redirect to it
+    gcs_url = get_file_url(filename, folder="uploads", storage_type="gcs")
+    if gcs_url.startswith("http"):
+        return RedirectResponse(url=gcs_url)
     
     # Otherwise, serve file content directly
     return Response(content=file_content, media_type=media_type)
 
 @router.get("/photos")
 async def list_photos(user_id: Optional[str] = Query(None)):
-    """List uploaded photos, optionally filtered by user_id"""
+    """List uploaded photos from Google Cloud Storage, optionally filtered by user_id"""
     photos = []
     
-    # Get files from storage (GCS or local)
+    # Get files from Google Cloud Storage
     files = list_files(folder="uploads")
     
     # Filter by user_id if provided
@@ -140,7 +131,7 @@ async def list_photos(user_id: Optional[str] = Query(None)):
     for file_info in files:
         filename = file_info["filename"]
         if Path(filename).suffix.lower() in ALLOWED_EXTENSIONS:
-            storage_type = file_info.get("storage_type", "local")
+            storage_type = file_info.get("storage_type", "gcs")
             file_url = get_file_url(filename, folder="uploads", storage_type=storage_type)
             
             photos.append({
@@ -172,19 +163,12 @@ async def delete_photo(filename: str, user_id: Optional[str] = Query(None)):
         if not user_id or user_id != photo_user_id:
             raise HTTPException(status_code=403, detail="You don't have permission to delete this photo")
     
-    # Determine storage type by checking where file exists
-    # Try GCS first if enabled, then fall back to local
-    storage_type = None
-    if USE_GCS and file_exists(filename, folder="uploads", storage_type="gcs"):
-        storage_type = "gcs"
-    elif file_exists(filename, folder="uploads"):
-        storage_type = "local"
-    
-    if storage_type is None:
+    # Check if file exists in Google Cloud Storage
+    if not file_exists(filename, folder="uploads", storage_type="gcs"):
         raise HTTPException(status_code=404, detail="Photo not found")
     
-    # Delete the file
-    success = delete_file(filename, folder="uploads", storage_type=storage_type)
+    # Delete the file from Google Cloud Storage
+    success = delete_file(filename, folder="uploads", storage_type="gcs")
     
     if not success:
         raise HTTPException(status_code=500, detail="Failed to delete photo")
@@ -199,14 +183,13 @@ def generate_signed_url():
     return {"message": "generate GCS signed URL here"}
 
 @router.get("/test")
-def test_upload_dir():
-    """Test endpoint to verify upload directory setup"""
+def test_storage():
+    """Test endpoint to verify Google Cloud Storage setup"""
     from app.storage import get_storage_mode
+    import os
     return {
         "storage_mode": get_storage_mode(),
-        "upload_dir": str(UPLOAD_DIR),
-        "exists": UPLOAD_DIR.exists(),
-        "is_dir": UPLOAD_DIR.is_dir() if UPLOAD_DIR.exists() else False,
-        "writable": os.access(UPLOAD_DIR, os.W_OK) if UPLOAD_DIR.exists() else False,
-        "absolute_path": str(UPLOAD_DIR.absolute())
+        "gcs_bucket": os.getenv("GOOGLE_CLOUD_STORAGE_BUCKET"),
+        "gcs_project_id": os.getenv("GOOGLE_CLOUD_PROJECT_ID"),
+        "gcs_configured": bool(os.getenv("GOOGLE_CLOUD_STORAGE_BUCKET") and os.getenv("GOOGLE_CLOUD_PROJECT_ID"))
     }
