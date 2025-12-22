@@ -1,0 +1,39 @@
+services:
+  # Backend API Service
+  - type: web
+    name: eventgrapher-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: FRONTEND_URL
+        value: https://eventgrapher-frontend.onrender.com
+      # Add your Google Cloud credentials and other env vars in Render dashboard
+      # - key: GOOGLE_CLOUD_PROJECT_ID
+      #   value: your-project-id
+      # - key: GOOGLE_CLOUD_STORAGE_BUCKET
+      #   value: your-bucket-name
+      # - key: GOOGLE_APPLICATION_CREDENTIALS
+      #   value: (upload as file in Render)
+      # - key: GOOGLE_GENERATIVE_AI_API_KEY
+      #   value: your-api-key
+
+  # Frontend Service
+  - type: web
+    name: eventgrapher-frontend
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 18.17.0
+      - key: NEXT_PUBLIC_API_URL
+        value: https://eventgrapher-backend.onrender.com
+      # Generate static export (optional)
+      - key: NODE_ENV
+        value: production
+
