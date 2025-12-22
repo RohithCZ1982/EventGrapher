@@ -66,6 +66,19 @@ def get_storage_mode() -> str:
     """Get current storage mode"""
     return "gcs" if USE_GCS else "local"
 
+def _get_content_type(filename: str) -> str:
+    """Determine content type based on file extension"""
+    ext = Path(filename).suffix.lower()
+    content_type_map = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp"
+    }
+    return content_type_map.get(ext, "application/octet-stream")
+
 def save_file(file_content: bytes, filename: str, folder: str = "uploads") -> Tuple[str, str]:
     """
     Save a file either to GCS or local storage.
@@ -76,8 +89,9 @@ def save_file(file_content: bytes, filename: str, folder: str = "uploads") -> Tu
             bucket = _gcs_client.bucket(GCS_BUCKET_NAME)
             blob_name = f"{folder}/{filename}"
             blob = bucket.blob(blob_name)
-            blob.upload_from_string(file_content, content_type="image/jpeg")
-            print(f"[STORAGE] Saved to GCS: {blob_name}")
+            content_type = _get_content_type(filename)
+            blob.upload_from_string(file_content, content_type=content_type)
+            print(f"[STORAGE] Saved to GCS: {blob_name} (content-type: {content_type})")
             return ("gcs", blob_name)
         except GoogleCloudError as e:
             print(f"[STORAGE] GCS upload failed: {e}, falling back to local")
@@ -110,12 +124,26 @@ def get_file_url(filename: str, folder: str = "uploads", storage_type: Optional[
                 blob_name = f"{folder}/{filename}"
                 blob = bucket.blob(blob_name)
                 
-                # Generate signed URL valid for 1 hour
-                url = blob.generate_signed_url(
-                    expiration=3600,
-                    method="GET"
-                )
-                return url
+                # Try to generate signed URL (requires service account with signing capability)
+                try:
+                    url = blob.generate_signed_url(
+                        expiration=3600,
+                        method="GET"
+                    )
+                    return url
+                except Exception as sign_error:
+                    # If signed URL generation fails, try public URL
+                    print(f"[STORAGE] Signed URL generation failed: {sign_error}, trying public URL")
+                    # Check if bucket is public, if so return public URL
+                    if blob.public_url:
+                        return blob.public_url
+                    # Otherwise, return API endpoint path (will be served through API)
+                    print(f"[STORAGE] Using API endpoint for GCS file (signed URL not available)")
+                    if folder == "uploads":
+                        return f"/upload/photos/{filename}"
+                    elif folder == "events/images":
+                        return f"/events/image/{filename}"
+                    return f"/{folder}/{filename}"
             except Exception as e:
                 print(f"[STORAGE] Error generating GCS URL: {e}")
                 # Fall through to local path
