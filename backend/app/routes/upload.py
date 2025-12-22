@@ -1,12 +1,13 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 import os
 import shutil
 from pathlib import Path
 from typing import List
 import uuid
 from datetime import datetime
+from app.storage import save_file, get_file_url, file_exists, list_files, read_file_content, get_storage_mode, USE_GCS
 
 router = APIRouter()
 
@@ -41,40 +42,34 @@ async def upload_file(file: UploadFile = File(...)):
     # Generate unique filename
     unique_id = str(uuid.uuid4())
     filename = f"{unique_id}{file_ext}"
-    file_path = UPLOAD_DIR / filename
-    print(f"[UPLOAD] Saving to: {file_path.absolute()}")
+    
+    print(f"[UPLOAD] Storage mode: {get_storage_mode()}")
     
     # Save file
     try:
-        # Read file content in chunks and write to disk
-        print("[UPLOAD] Starting file write...")
-        total_bytes = 0
-        with open(file_path, "wb") as buffer:
-            while True:
-                chunk = await file.read(1024 * 1024)  # Read 1MB chunks
-                if not chunk:
-                    break
-                buffer.write(chunk)
-                total_bytes += len(chunk)
+        # Read file content
+        print("[UPLOAD] Reading file content...")
+        contents = await file.read()
         
-        print(f"[UPLOAD] Wrote {total_bytes} bytes")
+        if len(contents) == 0:
+            raise HTTPException(status_code=400, detail="File is empty")
         
-        # Verify file was written
-        if file_path.exists():
-            file_size = file_path.stat().st_size
-            print(f"[UPLOAD] SUCCESS: File saved successfully. Size: {file_size} bytes")
-            if file_size == 0:
-                print("[UPLOAD] WARNING: File size is 0 bytes!")
-                raise HTTPException(status_code=500, detail="File was empty")
-        else:
-            print(f"[UPLOAD] ERROR: File was not created!")
-            raise HTTPException(status_code=500, detail="File was not saved")
+        print(f"[UPLOAD] Read {len(contents)} bytes")
+        
+        # Save to storage (GCS or local)
+        storage_type, storage_path = save_file(contents, filename, folder="uploads")
+        
+        # Get URL for the file
+        file_url = get_file_url(filename, folder="uploads", storage_type=storage_type)
+        
+        print(f"[UPLOAD] SUCCESS: File saved successfully. Storage: {storage_type}, URL: {file_url}")
         
         return {
             "id": unique_id,
             "filename": filename,
             "original_filename": file.filename,
-            "url": f"/upload/photos/{filename}",
+            "url": file_url,
+            "storage_type": storage_type,
             "uploaded_at": datetime.now().isoformat()
         }
     except Exception as e:
@@ -88,9 +83,14 @@ async def upload_file(file: UploadFile = File(...)):
 @router.get("/photos/{filename}")
 async def get_photo(filename: str):
     """Serve a photo file"""
-    file_path = UPLOAD_DIR / filename
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
     
-    if not file_path.exists():
+    # Try to read from storage (checks both GCS and local)
+    file_content = read_file_content(filename, folder="uploads")
+    
+    if file_content is None:
         raise HTTPException(status_code=404, detail="Photo not found")
     
     # Determine media type based on extension
@@ -105,25 +105,37 @@ async def get_photo(filename: str):
     }
     media_type = media_type_map.get(ext, "image/jpeg")
     
-    return FileResponse(file_path, media_type=media_type)
+    # If using GCS and we got a URL, redirect to it
+    if USE_GCS and file_exists(filename, folder="uploads", storage_type="gcs"):
+        gcs_url = get_file_url(filename, folder="uploads", storage_type="gcs")
+        if gcs_url.startswith("http"):
+            return RedirectResponse(url=gcs_url)
+    
+    # Otherwise, serve file content directly
+    from fastapi.responses import Response
+    return Response(content=file_content, media_type=media_type)
 
 @router.get("/photos")
 async def list_photos():
     """List all uploaded photos"""
     photos = []
     
-    if not UPLOAD_DIR.exists():
-        return {"photos": []}
+    # Get files from storage (GCS or local)
+    files = list_files(folder="uploads")
     
-    for file_path in UPLOAD_DIR.iterdir():
-        if file_path.is_file() and file_path.suffix.lower() in ALLOWED_EXTENSIONS:
-            stat = file_path.stat()
+    for file_info in files:
+        filename = file_info["filename"]
+        if Path(filename).suffix.lower() in ALLOWED_EXTENSIONS:
+            storage_type = file_info.get("storage_type", "local")
+            file_url = get_file_url(filename, folder="uploads", storage_type=storage_type)
+            
             photos.append({
-                "id": file_path.stem,
-                "filename": file_path.name,
-                "url": f"/upload/photos/{file_path.name}",
-                "size": stat.st_size,
-                "uploaded_at": datetime.fromtimestamp(stat.st_mtime).isoformat()
+                "id": Path(filename).stem,
+                "filename": filename,
+                "url": file_url,
+                "size": file_info.get("size", 0),
+                "uploaded_at": file_info.get("updated_at", datetime.now().isoformat()),
+                "storage_type": storage_type
             })
     
     # Sort by upload time (newest first)
@@ -138,7 +150,9 @@ def generate_signed_url():
 @router.get("/test")
 def test_upload_dir():
     """Test endpoint to verify upload directory setup"""
+    from app.storage import get_storage_mode
     return {
+        "storage_mode": get_storage_mode(),
         "upload_dir": str(UPLOAD_DIR),
         "exists": UPLOAD_DIR.exists(),
         "is_dir": UPLOAD_DIR.is_dir() if UPLOAD_DIR.exists() else False,

@@ -77,7 +77,7 @@ export default function Gallery() {
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link href="/" style={{
               padding: '10px 20px',
-              backgroundColor: '#0070f3',
+              backgroundColor: '#C5BE77',
               color: 'white',
               textDecoration: 'none',
               borderRadius: '5px',
@@ -87,7 +87,7 @@ export default function Gallery() {
             </Link>
             <Link href="/admin" style={{
               padding: '10px 20px',
-              backgroundColor: '#764ba2',
+              backgroundColor: '#C5BE77',
               color: 'white',
               textDecoration: 'none',
               borderRadius: '5px',
@@ -127,7 +127,7 @@ export default function Gallery() {
               style={{
                 marginTop: '10px',
                 padding: '8px 16px',
-                backgroundColor: '#c33',
+                backgroundColor: '#C5BE77',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
@@ -153,7 +153,7 @@ export default function Gallery() {
             </p>
             <Link href="/" style={{
               padding: '12px 24px',
-              backgroundColor: '#0070f3',
+              backgroundColor: '#C5BE77',
               color: 'white',
               textDecoration: 'none',
               borderRadius: '5px',

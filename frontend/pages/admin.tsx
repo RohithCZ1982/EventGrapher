@@ -107,7 +107,7 @@ export default function Admin() {
   return (
     <div style={{ 
       minHeight: '100vh', 
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      backgroundColor: '#C5BE77',
       padding: '40px 20px'
     }}>
       <div style={{ maxWidth: '800px', margin: '0 auto' }}>
@@ -123,7 +123,7 @@ export default function Admin() {
             margin: '0 0 10px 0',
             textShadow: '0 2px 10px rgba(0,0,0,0.2)'
           }}>
-            Event Admin Panel
+            Event Settings Panel
           </h1>
           <p style={{ fontSize: '18px', opacity: 0.9 }}>
             Manage your event information
@@ -200,7 +200,7 @@ export default function Admin() {
                     transition: 'all 0.3s',
                     boxSizing: 'border-box'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onFocus={(e) => e.target.style.borderColor = '#C5BE77'}
                   onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
               </div>
@@ -234,7 +234,7 @@ export default function Admin() {
                     fontFamily: 'inherit',
                     boxSizing: 'border-box'
                   }}
-                  onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                  onFocus={(e) => e.target.style.borderColor = '#C5BE77'}
                   onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
                 />
               </div>
@@ -342,24 +342,23 @@ export default function Admin() {
                   fontSize: '18px',
                   fontWeight: '600',
                   color: 'white',
-                  backgroundColor: loading ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  background: loading ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  backgroundColor: loading ? '#ccc' : '#C5BE77',
                   border: 'none',
                   borderRadius: '12px',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 4px 15px rgba(102, 126, 234, 0.4)',
+                  boxShadow: loading ? 'none' : '0 4px 15px rgba(197, 190, 119, 0.4)',
                   transition: 'all 0.3s'
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {
                     e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(102, 126, 234, 0.5)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(197, 190, 119, 0.5)';
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
                     e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(102, 126, 234, 0.4)';
+                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(197, 190, 119, 0.4)';
                   }
                 }}
               >

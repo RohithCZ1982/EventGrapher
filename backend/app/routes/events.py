@@ -1,12 +1,13 @@
 
 from fastapi import APIRouter, UploadFile, File, HTTPException, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 import os
 import json
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 from pydantic import BaseModel
+from app.storage import save_file, get_file_url, file_exists, read_file_content, USE_GCS
 
 router = APIRouter()
 
@@ -68,12 +69,12 @@ async def create_or_update_event(
             
             # Save image
             image_filename = f"event_image{file_ext}"
-            image_path = EVENT_IMAGES_DIR / image_filename
             
-            # Read and save image
+            # Read image content
             contents = await image.read()
-            with open(image_path, "wb") as buffer:
-                buffer.write(contents)
+            
+            # Save to storage (GCS or local)
+            storage_type, storage_path = save_file(contents, image_filename, folder="events/images")
         
         # Load existing data to preserve image if new one not uploaded
         existing_data = load_event_data()
@@ -119,16 +120,17 @@ def get_event():
 @router.get("/image/{filename}")
 async def get_event_image(filename: str):
     """Get event image"""
-    image_path = EVENT_IMAGES_DIR / filename
-    
-    # Security: ensure filename doesn't contain path traversal
+    # Security: prevent path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
     
-    if not image_path.exists():
+    # Try to read from storage (checks both GCS and local)
+    file_content = read_file_content(filename, folder="events/images")
+    
+    if file_content is None:
         raise HTTPException(status_code=404, detail="Image not found")
     
-    # Determine media type
+    # Determine media type based on extension
     ext = Path(filename).suffix.lower()
     media_type_map = {
         ".jpg": "image/jpeg",
@@ -140,5 +142,12 @@ async def get_event_image(filename: str):
     }
     media_type = media_type_map.get(ext, "image/jpeg")
     
-    return FileResponse(image_path, media_type=media_type)
+    # If using GCS and we got a URL, redirect to it
+    if USE_GCS and file_exists(filename, folder="events/images", storage_type="gcs"):
+        gcs_url = get_file_url(filename, folder="events/images", storage_type="gcs")
+        if gcs_url.startswith("http"):
+            return RedirectResponse(url=gcs_url)
+    
+    # Otherwise, serve file content directly
+    return Response(content=file_content, media_type=media_type)
 
