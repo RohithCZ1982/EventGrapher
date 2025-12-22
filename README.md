@@ -77,18 +77,15 @@ API documentation available at: http://localhost:8000/docs
 
 ### Deploy to Render
 
-This application can be deployed to Render. See [DEPLOY.md](./DEPLOY.md) for detailed deployment instructions.
+This application can be deployed to Render. See [RENDER_SETUP.md](./RENDER_SETUP.md) or [QUICK_START_RENDER.md](./QUICK_START_RENDER.md) for detailed deployment instructions.
 
 **Important**: Render's filesystem is ephemeral, so you **must** use cloud storage (Google Cloud Storage, AWS S3, etc.) for file uploads in production.
 
-Quick deployment steps:
-1. Push your code to GitHub/GitLab/Bitbucket
-2. Create a new Web Service in Render for the backend
-3. Create a new Web Service in Render for the frontend
-4. Configure environment variables
-5. Set up cloud storage for file uploads
+### Deploy to Google Cloud Run
 
-For detailed instructions, see [DEPLOY.md](./DEPLOY.md).
+This application can also be deployed to Google Cloud Run. See [CLOUD_RUN_DEPLOY.md](./CLOUD_RUN_DEPLOY.md) for detailed deployment instructions, or [QUICK_START_CLOUD_RUN.md](./QUICK_START_CLOUD_RUN.md) for a quick reference.
+
+**Note**: Cloud Run also has an ephemeral filesystem, so using Google Cloud Storage is recommended for production.
 
 ## Development
 

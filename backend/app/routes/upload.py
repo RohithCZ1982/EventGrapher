@@ -1,13 +1,14 @@
 
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
+from fastapi.responses import FileResponse, RedirectResponse, Response
 import os
 import shutil
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 import uuid
 from datetime import datetime
-from app.storage import save_file, get_file_url, file_exists, list_files, read_file_content, get_storage_mode, USE_GCS
+from app.storage import save_file, get_file_url, file_exists, list_files, read_file_content, get_storage_mode, USE_GCS, delete_file
+from .photos_metadata import add_photo_metadata, filter_photos_by_user, delete_photo_metadata, get_photo_user_id
 
 router = APIRouter()
 
@@ -18,9 +19,12 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
 
 @router.post("/")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(
+    file: UploadFile = File(...),
+    user_id: Optional[str] = Form(None)
+):
     """Upload a photo file"""
-    print(f"[UPLOAD] Received upload request for file: {file.filename}")
+    print(f"[UPLOAD] Received upload request for file: {file.filename}, user_id: {user_id}")
     print(f"[UPLOAD] Upload directory: {UPLOAD_DIR}")
     print(f"[UPLOAD] Upload directory exists: {UPLOAD_DIR.exists()}")
     
@@ -64,13 +68,19 @@ async def upload_file(file: UploadFile = File(...)):
         
         print(f"[UPLOAD] SUCCESS: File saved successfully. Storage: {storage_type}, URL: {file_url}")
         
+        # Store metadata with user_id if provided
+        if user_id:
+            add_photo_metadata(filename, user_id)
+            print(f"[UPLOAD] Associated photo with user_id: {user_id}")
+        
         return {
             "id": unique_id,
             "filename": filename,
             "original_filename": file.filename,
             "url": file_url,
             "storage_type": storage_type,
-            "uploaded_at": datetime.now().isoformat()
+            "uploaded_at": datetime.now().isoformat(),
+            "user_id": user_id
         }
     except Exception as e:
         # Log the full error for debugging
@@ -112,16 +122,20 @@ async def get_photo(filename: str):
             return RedirectResponse(url=gcs_url)
     
     # Otherwise, serve file content directly
-    from fastapi.responses import Response
     return Response(content=file_content, media_type=media_type)
 
 @router.get("/photos")
-async def list_photos():
-    """List all uploaded photos"""
+async def list_photos(user_id: Optional[str] = Query(None)):
+    """List uploaded photos, optionally filtered by user_id"""
     photos = []
     
     # Get files from storage (GCS or local)
     files = list_files(folder="uploads")
+    
+    # Filter by user_id if provided
+    if user_id:
+        filenames_to_include = filter_photos_by_user([f["filename"] for f in files], user_id)
+        files = [f for f in files if f["filename"] in filenames_to_include]
     
     for file_info in files:
         filename = file_info["filename"]
@@ -142,6 +156,43 @@ async def list_photos():
     photos.sort(key=lambda x: x["uploaded_at"], reverse=True)
     
     return {"photos": photos}
+
+@router.delete("/photos/{filename}")
+async def delete_photo(filename: str, user_id: Optional[str] = Query(None)):
+    """Delete a photo (only if it belongs to the user, or if no user_id is set for the photo)"""
+    # Security: prevent path traversal
+    if ".." in filename or "/" in filename or "\\" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    
+    # Get photo's user_id if it exists
+    photo_user_id = get_photo_user_id(filename)
+    
+    # If photo has a user_id, require matching user_id to delete
+    if photo_user_id:
+        if not user_id or user_id != photo_user_id:
+            raise HTTPException(status_code=403, detail="You don't have permission to delete this photo")
+    
+    # Determine storage type by checking where file exists
+    # Try GCS first if enabled, then fall back to local
+    storage_type = None
+    if USE_GCS and file_exists(filename, folder="uploads", storage_type="gcs"):
+        storage_type = "gcs"
+    elif file_exists(filename, folder="uploads"):
+        storage_type = "local"
+    
+    if storage_type is None:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    
+    # Delete the file
+    success = delete_file(filename, folder="uploads", storage_type=storage_type)
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to delete photo")
+    
+    # Delete metadata
+    delete_photo_metadata(filename)
+    
+    return {"success": True, "message": "Photo deleted successfully"}
 
 @router.post("/signed-url")
 def generate_signed_url():

@@ -10,6 +10,19 @@ interface EventData {
   updated_at?: string;
 }
 
+// Get or create user ID (stored in localStorage)
+const getUserID = (): string => {
+  if (typeof window !== 'undefined') {
+    let userId = localStorage.getItem('eventgrapher_user_id');
+    if (!userId) {
+      userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+      localStorage.setItem('eventgrapher_user_id', userId);
+    }
+    return userId;
+  }
+  return '';
+};
+
 export default function Home() {
   const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -62,9 +75,11 @@ export default function Home() {
     setUploadResults([]);
 
     try {
+      const userId = getUserID();
       const uploadPromises = files.map(async (file) => {
         const formData = new FormData();
         formData.append('file', file);
+        formData.append('user_id', userId);
 
         const response = await fetch(`${API_URL}/upload/`, {
           method: 'POST',
@@ -152,31 +167,22 @@ export default function Home() {
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos</h2>
-            </div>
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <Link href="/admin" style={{
-                padding: '10px 20px',
-                backgroundColor: '#C5BE77',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px',
-                fontWeight: '500'
-              }}>
-                Admin Panel
-              </Link>
-              <Link href="/gallery" style={{
-                padding: '10px 20px',
-                backgroundColor: '#C5BE77',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px',
-                fontWeight: '500'
-              }}>
-                View Gallery →
-              </Link>
-            </div>
+            <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos</h2>
+            <Link href="/gallery" style={{
+              padding: '10px 20px',
+              backgroundColor: '#C5BE77',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '5px',
+              fontWeight: '500',
+              fontSize: '16px',
+              transition: 'background-color 0.2s'
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b5ae67'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#C5BE77'}
+            >
+              View My Photos →
+            </Link>
           </div>
 
           <div style={{
@@ -257,14 +263,6 @@ export default function Home() {
               border: '1px solid #cfc'
             }}>
               Successfully uploaded {uploadResults.length} file{uploadResults.length > 1 ? 's' : ''}!
-              <Link href="/gallery" style={{
-                display: 'inline-block',
-                marginLeft: '10px',
-                color: '#C5BE77',
-                textDecoration: 'underline'
-              }}>
-                View in gallery
-              </Link>
             </div>
           )}
 

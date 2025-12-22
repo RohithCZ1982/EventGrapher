@@ -203,3 +203,37 @@ def read_file_content(filename: str, folder: str = "uploads", storage_type: Opti
             return f.read()
     return None
 
+def delete_file(filename: str, folder: str = "uploads", storage_type: Optional[str] = None) -> bool:
+    """Delete a file from storage. Returns True if successful, False otherwise."""
+    if storage_type == "gcs" or (USE_GCS and storage_type is None):
+        if USE_GCS and _gcs_client:
+            try:
+                bucket = _gcs_client.bucket(GCS_BUCKET_NAME)
+                blob_name = f"{folder}/{filename}"
+                blob = bucket.blob(blob_name)
+                if blob.exists():
+                    blob.delete()
+                    print(f"[STORAGE] Deleted from GCS: {blob_name}")
+                    return True
+                else:
+                    print(f"[STORAGE] File not found in GCS: {blob_name}")
+                    return False
+            except Exception as e:
+                print(f"[STORAGE] Error deleting from GCS: {e}")
+                return False
+    
+    # Local storage
+    local_dir = Path(__file__).parent.parent.parent / folder
+    file_path = local_dir / filename
+    if file_path.exists():
+        try:
+            file_path.unlink()
+            print(f"[STORAGE] Deleted from local storage: {file_path}")
+            return True
+        except Exception as e:
+            print(f"[STORAGE] Error deleting local file: {e}")
+            return False
+    else:
+        print(f"[STORAGE] File not found in local storage: {file_path}")
+        return False
+
