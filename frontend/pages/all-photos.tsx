@@ -197,21 +197,7 @@ export default function AllPhotos() {
   }
 
   return (
-    <>
-      <Head>
-        <style>{`
-          @media (max-width: 768px) {
-            .button-container {
-              flex-direction: column !important;
-            }
-            .button-container button,
-            .button-container a {
-              width: 100% !important;
-            }
-          }
-        `}</style>
-      </Head>
-      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ 
@@ -235,13 +221,10 @@ export default function AllPhotos() {
               )}
             </p>
           </div>
-          <div className="button-container" style={{ 
+          <div style={{ 
             display: 'flex', 
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: '8px', 
-            alignItems: 'stretch',
-            width: '100%'
+            gap: '10px', 
+            alignItems: 'center'
           }}>
             {isSelectionMode ? (
               <>
@@ -250,19 +233,16 @@ export default function AllPhotos() {
                     onClick={handleBulkDelete}
                     disabled={deletingPhotoIds.size > 0}
                     style={{
-                      padding: '8px 16px',
-                      minWidth: '120px',
-                      flex: '1 1 auto',
-                      backgroundColor: deletingPhotoIds.size > 0 ? '#ccc' : '#c33',
+                      padding: '10px 20px',
+                      backgroundColor: deletingPhotoIds.size > 0 ? '#ccc' : '#C5BE77',
                       color: 'white',
                       border: 'none',
                       borderRadius: '5px',
                       fontWeight: '500',
-                      fontSize: '14px',
                       cursor: deletingPhotoIds.size > 0 ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {deletingPhotoIds.size > 0 ? 'Deleting...' : `Delete (${selectedPhotoIds.size})`}
+                    {deletingPhotoIds.size > 0 ? 'Deleting...' : `Delete Selected (${selectedPhotoIds.size})`}
                   </button>
                 )}
                 <button
@@ -271,15 +251,12 @@ export default function AllPhotos() {
                     setSelectedPhotoIds(new Set());
                   }}
                   style={{
-                    padding: '8px 16px',
-                    minWidth: '120px',
-                    flex: '1 1 auto',
-                    backgroundColor: '#666',
+                    padding: '10px 20px',
+                    backgroundColor: '#C5BE77',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     fontWeight: '500',
-                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >
@@ -291,34 +268,24 @@ export default function AllPhotos() {
                 <button
                   onClick={() => setIsSelectionMode(true)}
                   style={{
-                    padding: '8px 16px',
-                    minWidth: '120px',
-                    flex: '1 1 auto',
+                    padding: '10px 20px',
                     backgroundColor: '#C5BE77',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     fontWeight: '500',
-                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >
                   Select Photos
                 </button>
                 <Link href="/admin" style={{
-                  padding: '8px 16px',
-                  minWidth: '120px',
-                  flex: '1 1 auto',
+                  padding: '10px 20px',
                   backgroundColor: '#C5BE77',
                   color: 'white',
                   textDecoration: 'none',
                   borderRadius: '5px',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center'
+                  fontWeight: '500'
                 }}>
                   Admin Panel
                 </Link>
@@ -663,7 +630,6 @@ export default function AllPhotos() {
         )}
       </div>
     </div>
-    </>
   );
 }
 
