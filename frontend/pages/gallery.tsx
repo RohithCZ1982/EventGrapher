@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { isNavigationAllowed, setAllowedNavigation } from '../utils/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -26,14 +28,24 @@ interface Photo {
 }
 
 export default function Gallery() {
+  const router = useRouter();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
-    fetchPhotos();
+    // Check if navigation is allowed
+    if (typeof window !== 'undefined') {
+      if (!isNavigationAllowed()) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
+      fetchPhotos();
+    }
   }, []);
 
   const fetchPhotos = async () => {
@@ -104,6 +116,38 @@ export default function Gallery() {
       setDeletingPhotoId(null);
     }
   };
+
+  // Show access denied if not allowed
+  if (accessDenied) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: '40px',
+          textAlign: 'center',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          maxWidth: '500px'
+        }}>
+          <h1 style={{ fontSize: '32px', color: '#333', marginBottom: '20px' }}>Access Denied</h1>
+          <p style={{ fontSize: '16px', color: '#666', marginBottom: '30px' }}>
+            This page can only be accessed through the links provided on the home or admin page.
+          </p>
+          <Link href="/" style={{
+            display: 'inline-block',
+            padding: '12px 24px',
+            backgroundColor: '#C5BE77',
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '8px',
+            fontWeight: '500'
+          }}>
+            Go to Home Page
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>

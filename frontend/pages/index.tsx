@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
+import { setAllowedNavigation } from '../utils/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -459,18 +460,25 @@ export default function Home() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
             <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos & Videos</h2>
-            <Link href="/gallery" style={{
-              padding: '10px 20px',
-              backgroundColor: '#C5BE77',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '5px',
-              fontWeight: '500',
-              fontSize: '16px',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b5ae67'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#C5BE77'}
+            <Link 
+              href="/gallery" 
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  setAllowedNavigation('index');
+                }
+              }}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#C5BE77',
+                color: 'white',
+                textDecoration: 'none',
+                borderRadius: '5px',
+                fontWeight: '500',
+                fontSize: '16px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b5ae67'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#C5BE77'}
             >
               View My Photos →
             </Link>
@@ -584,7 +592,7 @@ export default function Home() {
           color: '#999',
           fontSize: '12px'
         }}>
-          Version 1.0.3
+          Version 1.0.4
         </div>
       </div>
     </div>

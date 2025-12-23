@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { isNavigationAllowed, setAllowedNavigation } from '../utils/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -13,6 +15,7 @@ interface Photo {
 }
 
 export default function AllPhotos() {
+  const router = useRouter();
   const [photos, setPhotos] = useState<Photo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +23,18 @@ export default function AllPhotos() {
   const [selectedPhotoIds, setSelectedPhotoIds] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<string>>(new Set());
+  const [accessDenied, setAccessDenied] = useState(false);
 
   useEffect(() => {
-    fetchAllPhotos();
+    // Check if navigation is allowed
+    if (typeof window !== 'undefined') {
+      if (!isNavigationAllowed()) {
+        setAccessDenied(true);
+        setLoading(false);
+        return;
+      }
+      fetchAllPhotos();
+    }
   }, []);
 
   const fetchAllPhotos = async () => {
@@ -140,14 +152,72 @@ export default function AllPhotos() {
     }
   };
 
+  // Show access denied if not allowed
+  if (accessDenied) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ 
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          padding: '40px',
+          textAlign: 'center',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+          maxWidth: '500px'
+        }}>
+          <h1 style={{ fontSize: '32px', color: '#333', marginBottom: '20px' }}>Access Denied</h1>
+          <p style={{ fontSize: '16px', color: '#666', marginBottom: '30px' }}>
+            This page can only be accessed through the links provided on the home or admin page.
+          </p>
+          <Link href="/" style={{
+            display: 'inline-block',
+            padding: '12px 24px',
+            backgroundColor: '#C5BE77',
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '8px',
+            fontWeight: '500',
+            marginRight: '10px'
+          }}>
+            Go to Home Page
+          </Link>
+          <Link href="/admin" style={{
+            display: 'inline-block',
+            padding: '12px 24px',
+            backgroundColor: '#C5BE77',
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '8px',
+            fontWeight: '500'
+          }}>
+            Go to Admin Page
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+    <>
+      <Head>
+        <style>{`
+          @media (max-width: 768px) {
+            .button-container {
+              flex-direction: column !important;
+            }
+            .button-container button,
+            .button-container a {
+              width: 100% !important;
+            }
+          }
+        `}</style>
+      </Head>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ 
           display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
+          flexDirection: 'column',
+          gap: '15px',
           marginBottom: '30px',
           backgroundColor: 'white',
           padding: '20px',
@@ -165,7 +235,14 @@ export default function AllPhotos() {
               )}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <div className="button-container" style={{ 
+            display: 'flex', 
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            gap: '8px', 
+            alignItems: 'stretch',
+            width: '100%'
+          }}>
             {isSelectionMode ? (
               <>
                 {selectedPhotoIds.size > 0 && (
@@ -173,16 +250,19 @@ export default function AllPhotos() {
                     onClick={handleBulkDelete}
                     disabled={deletingPhotoIds.size > 0}
                     style={{
-                      padding: '10px 20px',
+                      padding: '8px 16px',
+                      minWidth: '120px',
+                      flex: '1 1 auto',
                       backgroundColor: deletingPhotoIds.size > 0 ? '#ccc' : '#c33',
                       color: 'white',
                       border: 'none',
                       borderRadius: '5px',
                       fontWeight: '500',
+                      fontSize: '14px',
                       cursor: deletingPhotoIds.size > 0 ? 'not-allowed' : 'pointer'
                     }}
                   >
-                    {deletingPhotoIds.size > 0 ? 'Deleting...' : `Delete Selected (${selectedPhotoIds.size})`}
+                    {deletingPhotoIds.size > 0 ? 'Deleting...' : `Delete (${selectedPhotoIds.size})`}
                   </button>
                 )}
                 <button
@@ -191,12 +271,15 @@ export default function AllPhotos() {
                     setSelectedPhotoIds(new Set());
                   }}
                   style={{
-                    padding: '10px 20px',
+                    padding: '8px 16px',
+                    minWidth: '120px',
+                    flex: '1 1 auto',
                     backgroundColor: '#666',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     fontWeight: '500',
+                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >
@@ -208,34 +291,34 @@ export default function AllPhotos() {
                 <button
                   onClick={() => setIsSelectionMode(true)}
                   style={{
-                    padding: '10px 20px',
+                    padding: '8px 16px',
+                    minWidth: '120px',
+                    flex: '1 1 auto',
                     backgroundColor: '#C5BE77',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
                     fontWeight: '500',
+                    fontSize: '14px',
                     cursor: 'pointer'
                   }}
                 >
                   Select Photos
                 </button>
-                <Link href="/" style={{
-                  padding: '10px 20px',
-                  backgroundColor: '#C5BE77',
-                  color: 'white',
-                  textDecoration: 'none',
-                  borderRadius: '5px',
-                  fontWeight: '500'
-                }}>
-                  ← Home
-                </Link>
                 <Link href="/admin" style={{
-                  padding: '10px 20px',
+                  padding: '8px 16px',
+                  minWidth: '120px',
+                  flex: '1 1 auto',
                   backgroundColor: '#C5BE77',
                   color: 'white',
                   textDecoration: 'none',
                   borderRadius: '5px',
-                  fontWeight: '500'
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center'
                 }}>
                   Admin Panel
                 </Link>
@@ -580,6 +663,7 @@ export default function AllPhotos() {
         )}
       </div>
     </div>
+    </>
   );
 }
 

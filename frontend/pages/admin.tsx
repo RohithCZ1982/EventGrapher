@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/router';
+import { isAdminAuthenticated, authenticateAdmin, setAllowedNavigation, logoutAdmin } from '../utils/auth';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -11,6 +13,10 @@ interface EventData {
 }
 
 export default function Admin() {
+  const router = useRouter();
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passwordError, setPasswordError] = useState<string | null>(null);
   const [eventName, setEventName] = useState('');
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -22,8 +28,28 @@ export default function Admin() {
   const [loadingExisting, setLoadingExisting] = useState(true);
 
   useEffect(() => {
-    loadExistingEvent();
+    // Check authentication on mount
+    if (typeof window !== 'undefined') {
+      const authStatus = isAdminAuthenticated();
+      setIsAuthenticated(authStatus);
+      if (authStatus) {
+        loadExistingEvent();
+      }
+    }
   }, []);
+
+  const handlePasswordSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordError(null);
+    
+    if (authenticateAdmin(password)) {
+      setIsAuthenticated(true);
+      loadExistingEvent();
+    } else {
+      setPasswordError('Incorrect password. Please try again.');
+      setPassword('');
+    }
+  };
 
   const loadExistingEvent = async () => {
     try {
@@ -104,6 +130,100 @@ export default function Admin() {
 
   const displayImageUrl = previewUrl || existingImageUrl;
 
+  // Show password form if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <div style={{ 
+        minHeight: '100vh', 
+        backgroundColor: '#C5BE77',
+        padding: '40px 20px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ 
+          maxWidth: '400px', 
+          width: '100%',
+          backgroundColor: 'white',
+          borderRadius: '20px',
+          padding: '40px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        }}>
+          <h1 style={{ 
+            fontSize: '32px', 
+            fontWeight: '700', 
+            margin: '0 0 10px 0',
+            textAlign: 'center',
+            color: '#333'
+          }}>
+            Admin Access
+          </h1>
+          <p style={{ 
+            fontSize: '16px', 
+            textAlign: 'center',
+            color: '#666',
+            marginBottom: '30px'
+          }}>
+            Please enter the password to access the admin panel
+          </p>
+          
+          <form onSubmit={handlePasswordSubmit}>
+            <div style={{ marginBottom: '20px' }}>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter password"
+                required
+                style={{
+                  width: '100%',
+                  padding: '14px 18px',
+                  fontSize: '16px',
+                  border: '2px solid #e0e0e0',
+                  borderRadius: '12px',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                autoFocus
+              />
+            </div>
+            
+            {passwordError && (
+              <div style={{
+                backgroundColor: '#fee',
+                color: '#c33',
+                padding: '12px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                fontSize: '14px'
+              }}>
+                {passwordError}
+              </div>
+            )}
+            
+            <button
+              type="submit"
+              style={{
+                width: '100%',
+                padding: '14px',
+                fontSize: '16px',
+                fontWeight: '600',
+                color: 'white',
+                backgroundColor: '#C5BE77',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer'
+              }}
+            >
+              Access Admin Panel
+            </button>
+          </form>
+          
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ 
       minHeight: '100vh', 
@@ -132,45 +252,48 @@ export default function Admin() {
 
         {/* Navigation */}
         <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-          <Link href="/" style={{
-            display: 'inline-block',
-            padding: '10px 20px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '8px',
-            marginRight: '10px',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.3)',
-            transition: 'all 0.3s'
-          }}>
-            ← Back to Home
-          </Link>
-          <Link href="/all-photos" style={{
-            display: 'inline-block',
-            padding: '10px 20px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '8px',
-            marginRight: '10px',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.3)',
-            transition: 'all 0.3s'
-          }}>
+          <button
+            onClick={() => {
+              logoutAdmin();
+              setIsAuthenticated(false);
+              router.push('/');
+            }}
+            style={{
+              display: 'inline-block',
+              padding: '10px 20px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '8px',
+              marginRight: '10px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontFamily: 'inherit'
+            }}
+          >
+            Logout
+          </button>
+          <Link 
+            href="/all-photos" 
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                setAllowedNavigation('admin');
+              }
+            }}
+            style={{
+              display: 'inline-block',
+              padding: '10px 20px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '8px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              transition: 'all 0.3s'
+            }}>
             View All Photos
-          </Link>
-          <Link href="/gallery" style={{
-            display: 'inline-block',
-            padding: '10px 20px',
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            color: 'white',
-            textDecoration: 'none',
-            borderRadius: '8px',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255,255,255,0.3)'
-          }}>
-            View Gallery
           </Link>
         </div>
 
