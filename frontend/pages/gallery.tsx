@@ -22,6 +22,7 @@ interface Photo {
   url: string;
   size: number;
   uploaded_at: string;
+  is_video?: boolean;
 }
 
 export default function Gallery() {
@@ -41,7 +42,7 @@ export default function Gallery() {
       const userId = getUserID();
       const response = await fetch(`${API_URL}/upload/photos?user_id=${encodeURIComponent(userId)}`);
       if (!response.ok) {
-        throw new Error('Failed to fetch photos');
+        throw new Error('Failed to fetch files');
       }
       const data = await response.json();
       setPhotos(data.photos || []);
@@ -71,7 +72,7 @@ export default function Gallery() {
 
   const handleDeletePhoto = async (photo: Photo, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent opening the modal
-    if (!confirm('Are you sure you want to delete this photo?')) {
+    if (!confirm('Are you sure you want to delete this file?')) {
       return;
     }
 
@@ -119,9 +120,9 @@ export default function Gallery() {
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
           <div>
-            <h1 style={{ margin: 0, fontSize: '28px', color: '#333' }}>Photo Gallery</h1>
+            <h1 style={{ margin: 0, fontSize: '28px', color: '#333' }}>Photo & Video Gallery</h1>
             <p style={{ margin: '5px 0 0 0', color: '#666' }}>
-              {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+              {photos.length} {photos.length === 1 ? 'file' : 'files'}
             </p>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -133,17 +134,7 @@ export default function Gallery() {
               borderRadius: '5px',
               fontWeight: '500'
             }}>
-              ← Upload Photos
-            </Link>
-            <Link href="/admin" style={{
-              padding: '10px 20px',
-              backgroundColor: '#C5BE77',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '5px',
-              fontWeight: '500'
-            }}>
-              Admin Panel
+              ← Upload Files
             </Link>
           </div>
         </div>
@@ -157,7 +148,7 @@ export default function Gallery() {
             borderRadius: '8px',
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}>
-            <p style={{ fontSize: '18px', color: '#666' }}>Loading photos...</p>
+            <p style={{ fontSize: '18px', color: '#666' }}>Loading files...</p>
           </div>
         )}
 
@@ -199,7 +190,7 @@ export default function Gallery() {
             boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
           }}>
             <p style={{ fontSize: '18px', color: '#666', marginBottom: '20px' }}>
-              No photos uploaded yet.
+              No files uploaded yet.
             </p>
             <Link href="/" style={{
               padding: '12px 24px',
@@ -210,7 +201,7 @@ export default function Gallery() {
               display: 'inline-block',
               fontWeight: '500'
             }}>
-              Upload Your First Photo
+              Upload Your First File
             </Link>
           </div>
         )}
@@ -249,21 +240,52 @@ export default function Gallery() {
                   }}
                 >
                   <div style={{ position: 'relative', paddingTop: '100%', backgroundColor: '#f0f0f0' }}>
-                    <img
-                      src={getImageUrl(photo)}
-                      alt={photo.filename}
-                      style={{
+                    {photo.is_video ? (
+                      <video
+                        src={getImageUrl(photo)}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        muted
+                        playsInline
+                      />
+                    ) : (
+                      <img
+                        src={getImageUrl(photo)}
+                        alt={photo.filename}
+                        style={{
+                          position: 'absolute',
+                          top: 0,
+                          left: 0,
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover'
+                        }}
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    )}
+                    {photo.is_video && (
+                      <div style={{
                         position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover'
-                      }}
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
+                        top: '8px',
+                        left: '8px',
+                        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                        color: 'white',
+                        padding: '4px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 'bold'
+                      }}>
+                        ▶ VIDEO
+                      </div>
+                    )}
                     {deletingPhotoId === photo.id && (
                       <div style={{
                         position: 'absolute',
@@ -331,7 +353,7 @@ export default function Gallery() {
                     e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
                     e.currentTarget.style.transform = 'scale(1)';
                   }}
-                  title="Delete photo"
+                  title="Delete file"
                 >
                   ×
                 </button>
@@ -384,16 +406,28 @@ export default function Gallery() {
               >
                 ×
               </button>
-              <img
-                src={getImageUrl(selectedPhoto)}
-                alt={selectedPhoto.filename}
-                style={{
-                  maxWidth: '100%',
-                  maxHeight: '90vh',
-                  objectFit: 'contain',
-                  borderRadius: '4px'
-                }}
-              />
+              {selectedPhoto.is_video ? (
+                <video
+                  src={getImageUrl(selectedPhoto)}
+                  controls
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '90vh',
+                    borderRadius: '4px'
+                  }}
+                />
+              ) : (
+                <img
+                  src={getImageUrl(selectedPhoto)}
+                  alt={selectedPhoto.filename}
+                  style={{
+                    maxWidth: '100%',
+                    maxHeight: '90vh',
+                    objectFit: 'contain',
+                    borderRadius: '4px'
+                  }}
+                />
+              )}
               <div style={{
                 position: 'absolute',
                 bottom: '-50px',
@@ -425,7 +459,7 @@ export default function Gallery() {
                     opacity: deletingPhotoId === selectedPhoto.id ? 0.6 : 1
                   }}
                 >
-                  {deletingPhotoId === selectedPhoto.id ? 'Deleting...' : 'Delete Photo'}
+                  {deletingPhotoId === selectedPhoto.id ? 'Deleting...' : 'Delete File'}
                 </button>
               </div>
             </div>

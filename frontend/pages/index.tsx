@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Head from 'next/head';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -30,6 +31,12 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [eventData, setEventData] = useState<EventData | null>(null);
   const [loadingEvent, setLoadingEvent] = useState(true);
+  
+  // Sticky note states
+  const [stickyName, setStickyName] = useState('');
+  const [stickyMessage, setStickyMessage] = useState('');
+  const [stickyColor, setStickyColor] = useState('#FFEB3B'); // Default yellow
+  const [uploadingSticky, setUploadingSticky] = useState(false);
 
   useEffect(() => {
     fetchEventData();
@@ -109,9 +116,172 @@ export default function Home() {
     }
   };
 
+  const loadHandwrittenFont = async (): Promise<void> => {
+    return new Promise((resolve) => {
+      // Check if font is already loaded
+      if (document.fonts && document.fonts.check('24px Caveat')) {
+        resolve();
+        return;
+      }
+
+      // Wait for fonts to be ready
+      if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(() => {
+          // Give it a small delay to ensure font is fully loaded
+          setTimeout(() => resolve(), 100);
+        }).catch(() => {
+          // If font loading fails, continue with fallback
+          resolve();
+        });
+      } else {
+        // Fallback: wait a bit for the font to load from the link tag
+        setTimeout(() => resolve(), 500);
+      }
+    });
+  };
+
+  const generateStickyNoteImage = async (): Promise<File> => {
+    return new Promise(async (resolve, reject) => {
+      // Load handwritten font first
+      await loadHandwrittenFont();
+
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Could not get canvas context'));
+        return;
+      }
+
+      // Set canvas size (sticky note dimensions)
+      const width = 400;
+      const height = 300;
+      canvas.width = width;
+      canvas.height = height;
+
+      // Draw sticky note background with color
+      ctx.fillStyle = stickyColor;
+      ctx.fillRect(0, 0, width, height);
+
+      // Add subtle shadow effect
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+
+      // Draw border
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(0, 0, width, height);
+
+      // Reset shadow for text
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Configure text styles with handwritten font
+      ctx.fillStyle = '#333';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+
+      // Draw message text at the top with handwritten font
+      const padding = 30;
+      const maxWidth = width - (padding * 2);
+      // Use handwritten font with fallback
+      ctx.font = 'bold 22px "Caveat", "Comic Sans MS", "Brush Script MT", cursive';
+      
+      // Word wrap for message
+      const words = stickyMessage.split(' ');
+      let line = '';
+      let y = padding;
+      const lineHeight = 32;
+
+      for (let i = 0; i < words.length; i++) {
+        const testLine = line + words[i] + ' ';
+        const metrics = ctx.measureText(testLine);
+        if (metrics.width > maxWidth && i > 0) {
+          ctx.fillText(line, padding, y);
+          line = words[i] + ' ';
+          y += lineHeight;
+        } else {
+          line = testLine;
+        }
+      }
+      ctx.fillText(line, padding, y);
+
+      // Draw "from, Name" at bottom right with handwritten font
+      const fromText = `from, ${stickyName}`;
+      ctx.font = 'italic 18px "Caveat", "Comic Sans MS", "Brush Script MT", cursive';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = '#666';
+      ctx.fillText(fromText, width - padding, height - padding);
+
+      // Convert canvas to blob and then to File
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const file = new File([blob], 'sticky-note.png', { type: 'image/png' });
+          resolve(file);
+        } else {
+          reject(new Error('Failed to generate image'));
+        }
+      }, 'image/png');
+    });
+  };
+
+  const handleStickyNoteUpload = async () => {
+    if (!stickyName.trim() || !stickyMessage.trim()) {
+      setError('Please enter both Name and Message');
+      return;
+    }
+
+    setUploadingSticky(true);
+    setError(null);
+
+    try {
+      // Generate sticky note image
+      const stickyImageFile = await generateStickyNoteImage();
+
+      // Upload the image
+      const userId = getUserID();
+      const formData = new FormData();
+      formData.append('file', stickyImageFile);
+      formData.append('user_id', userId);
+
+      const response = await fetch(`${API_URL}/upload/`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(errorData.detail || `Failed to upload sticky note: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      setUploadResults([result]);
+      
+      // Reset form
+      setStickyName('');
+      setStickyMessage('');
+      setStickyColor('#FFEB3B');
+    } catch (err) {
+      console.error('Sticky note upload error:', err);
+      setError(err instanceof Error ? err.message : 'An error occurred during upload');
+    } finally {
+      setUploadingSticky(false);
+    }
+  };
+
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+    <>
+      <Head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap" rel="stylesheet" />
+      </Head>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
+        <div style={{ maxWidth: '900px', margin: '0 auto' }}>
         {/* Event Header Section */}
         {!loadingEvent && eventData && (
           <div style={{
@@ -159,6 +329,127 @@ export default function Home() {
           </div>
         )}
 
+        {/* Sticky Note Section */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '8px',
+          padding: '30px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          marginBottom: '30px'
+        }}>
+          <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', color: '#333' }}>Create Sticky Note</h2>
+          
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#555' }}>
+              Your Name
+            </label>
+            <input
+              type="text"
+              value={stickyName}
+              onChange={(e) => setStickyName(e.target.value)}
+              placeholder="Enter your name"
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '16px',
+                border: '1px solid #ddd',
+                borderRadius: '5px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#555' }}>
+              Message
+            </label>
+            <textarea
+              value={stickyMessage}
+              onChange={(e) => setStickyMessage(e.target.value)}
+              placeholder="Enter your message"
+              rows={5}
+              style={{
+                width: '100%',
+                padding: '12px',
+                fontSize: '16px',
+                border: '1px solid #ddd',
+                borderRadius: '5px',
+                boxSizing: 'border-box',
+                resize: 'vertical',
+                fontFamily: 'inherit'
+              }}
+            />
+          </div>
+
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: '500', color: '#555' }}>
+              Sticky Note Color
+            </label>
+            <div style={{ display: 'flex', gap: '15px' }}>
+              <button
+                onClick={() => setStickyColor('#FFEB3B')}
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  backgroundColor: '#FFEB3B',
+                  border: stickyColor === '#FFEB3B' ? '4px solid #333' : '2px solid #ddd',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  boxShadow: stickyColor === '#FFEB3B' ? '0 4px 8px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s'
+                }}
+                title="Yellow"
+              />
+              <button
+                onClick={() => setStickyColor('#FFC1CC')}
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  backgroundColor: '#FFC1CC',
+                  border: stickyColor === '#FFC1CC' ? '4px solid #333' : '2px solid #ddd',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  boxShadow: stickyColor === '#FFC1CC' ? '0 4px 8px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s'
+                }}
+                title="Pink"
+              />
+              <button
+                onClick={() => setStickyColor('#B3E5FC')}
+                style={{
+                  width: '80px',
+                  height: '80px',
+                  backgroundColor: '#B3E5FC',
+                  border: stickyColor === '#B3E5FC' ? '4px solid #333' : '2px solid #ddd',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  boxShadow: stickyColor === '#B3E5FC' ? '0 4px 8px rgba(0,0,0,0.2)' : '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s'
+                }}
+                title="Blue"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={handleStickyNoteUpload}
+            disabled={!stickyName.trim() || !stickyMessage.trim() || uploadingSticky}
+            style={{
+              width: '100%',
+              padding: '12px',
+              fontSize: '16px',
+              backgroundColor: (stickyName.trim() && stickyMessage.trim() && !uploadingSticky) ? '#C5BE77' : '#ccc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: (stickyName.trim() && stickyMessage.trim() && !uploadingSticky) ? 'pointer' : 'not-allowed',
+              fontWeight: '500'
+            }}
+          >
+            {uploadingSticky ? 'Creating Sticky Note...' : 'Create Sticky Note'}
+          </button>
+        </div>
+
         {/* Upload Section */}
         <div style={{
           backgroundColor: 'white',
@@ -167,7 +458,7 @@ export default function Home() {
           boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-            <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos</h2>
+            <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos & Videos</h2>
             <Link href="/gallery" style={{
               padding: '10px 20px',
               backgroundColor: '#C5BE77',
@@ -197,7 +488,7 @@ export default function Home() {
               id="file-input"
               type="file"
               multiple
-              accept="image/*"
+              accept="image/*,video/*"
               onChange={handleFileChange}
               style={{ display: 'none' }}
             />
@@ -208,15 +499,15 @@ export default function Home() {
                 display: 'block'
               }}
             >
-              <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
+              <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷🎥</div>
               <div style={{ fontSize: '16px', color: '#666', marginBottom: '5px' }}>
                 {files.length > 0 
                   ? `${files.length} file${files.length > 1 ? 's' : ''} selected`
-                  : 'Click to select photos or drag and drop'
+                  : 'Click to select photos/videos or drag and drop'
                 }
               </div>
               <div style={{ fontSize: '12px', color: '#999' }}>
-                Supports JPG, PNG, GIF, WebP
+                Supports JPG, PNG, GIF, WebP, MP4, MOV, AVI, WebM
               </div>
             </label>
           </div>
@@ -281,7 +572,7 @@ export default function Home() {
               fontWeight: '500'
             }}
           >
-            {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Photos'}`}
+            {uploading ? 'Uploading...' : `Upload ${files.length > 0 ? `${files.length} file${files.length > 1 ? 's' : ''}` : 'Files'}`}
           </button>
         </div>
 
@@ -293,9 +584,10 @@ export default function Home() {
           color: '#999',
           fontSize: '12px'
         }}>
-          Version 1.0.1
+          Version 1.0.3
         </div>
       </div>
     </div>
+    </>
   );
 }

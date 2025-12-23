@@ -10,14 +10,14 @@ from .photos_metadata import add_photo_metadata, filter_photos_by_user, delete_p
 
 router = APIRouter()
 
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"}
+ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".mp4", ".mov", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".m4v"}
 
 @router.post("/")
 async def upload_file(
     file: UploadFile = File(...),
     user_id: Optional[str] = Form(None)
 ):
-    """Upload a photo file to Google Cloud Storage"""
+    """Upload a photo or video file to Google Cloud Storage"""
     print(f"[UPLOAD] Received upload request for file: {file.filename}, user_id: {user_id}")
     
     # Check if filename exists
@@ -84,7 +84,7 @@ async def upload_file(
 
 @router.get("/photos/{filename}")
 async def get_photo(filename: str):
-    """Serve a photo file from Google Cloud Storage"""
+    """Serve a photo or video file from Google Cloud Storage"""
     # Security: prevent path traversal
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
@@ -103,9 +103,17 @@ async def get_photo(filename: str):
         ".png": "image/png",
         ".gif": "image/gif",
         ".webp": "image/webp",
-        ".bmp": "image/bmp"
+        ".bmp": "image/bmp",
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
+        ".webm": "video/webm",
+        ".mkv": "video/x-matroska",
+        ".flv": "video/x-flv",
+        ".wmv": "video/x-ms-wmv",
+        ".m4v": "video/x-m4v"
     }
-    media_type = media_type_map.get(ext, "image/jpeg")
+    media_type = media_type_map.get(ext, "application/octet-stream")
     
     # Try to get GCS URL, if it's a signed URL, redirect to it
     gcs_url = get_file_url(filename, folder="uploads", storage_type="gcs")
@@ -117,7 +125,7 @@ async def get_photo(filename: str):
 
 @router.get("/photos")
 async def list_photos(user_id: Optional[str] = Query(None)):
-    """List uploaded photos from Google Cloud Storage, optionally filtered by user_id"""
+    """List uploaded photos and videos from Google Cloud Storage, optionally filtered by user_id"""
     photos = []
     
     # Get files from Google Cloud Storage
@@ -134,13 +142,19 @@ async def list_photos(user_id: Optional[str] = Query(None)):
             storage_type = file_info.get("storage_type", "gcs")
             file_url = get_file_url(filename, folder="uploads", storage_type=storage_type)
             
+            # Determine if file is a video
+            ext = Path(filename).suffix.lower()
+            video_extensions = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".flv", ".wmv", ".m4v"}
+            is_video = ext in video_extensions
+            
             photos.append({
                 "id": Path(filename).stem,
                 "filename": filename,
                 "url": file_url,
                 "size": file_info.get("size", 0),
                 "uploaded_at": file_info.get("updated_at", datetime.now().isoformat()),
-                "storage_type": storage_type
+                "storage_type": storage_type,
+                "is_video": is_video
             })
     
     # Sort by upload time (newest first)

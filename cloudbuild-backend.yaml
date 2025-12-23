@@ -23,8 +23,8 @@ steps:
       - '--allow-unauthenticated'
       - '--port'
       - '8080'
-      - '--set-env-vars'
-      - 'GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_STORAGE_BUCKET=${_STORAGE_BUCKET}'
+      - '--update-env-vars'
+      - 'GOOGLE_CLOUD_PROJECT_ID=${PROJECT_ID},GOOGLE_CLOUD_STORAGE_BUCKET=${_STORAGE_BUCKET},FRONTEND_URL=${_FRONTEND_URL}'
       - '--memory'
       - '512Mi'
       - '--cpu'
@@ -38,4 +38,5 @@ images:
 substitutions:
   _REGION: us-central1
   _STORAGE_BUCKET: ''  # Set this when running: --substitutions=_STORAGE_BUCKET=your-bucket-name
+  _FRONTEND_URL: ''  # Set this when running: --substitutions=_FRONTEND_URL=https://eventgrapher-frontend-xsgryb7toa-uc.a.run.app
 

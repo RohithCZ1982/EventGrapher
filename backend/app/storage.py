@@ -78,7 +78,15 @@ def _get_content_type(filename: str) -> str:
         ".png": "image/png",
         ".gif": "image/gif",
         ".webp": "image/webp",
-        ".bmp": "image/bmp"
+        ".bmp": "image/bmp",
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".avi": "video/x-msvideo",
+        ".webm": "video/webm",
+        ".mkv": "video/x-matroska",
+        ".flv": "video/x-flv",
+        ".wmv": "video/x-ms-wmv",
+        ".m4v": "video/x-m4v"
     }
     return content_type_map.get(ext, "application/octet-stream")
 

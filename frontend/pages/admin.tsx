@@ -146,6 +146,20 @@ export default function Admin() {
           }}>
             ← Back to Home
           </Link>
+          <Link href="/all-photos" style={{
+            display: 'inline-block',
+            padding: '10px 20px',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            color: 'white',
+            textDecoration: 'none',
+            borderRadius: '8px',
+            marginRight: '10px',
+            backdropFilter: 'blur(10px)',
+            border: '1px solid rgba(255,255,255,0.3)',
+            transition: 'all 0.3s'
+          }}>
+            View All Photos
+          </Link>
           <Link href="/gallery" style={{
             display: 'inline-block',
             padding: '10px 20px',
