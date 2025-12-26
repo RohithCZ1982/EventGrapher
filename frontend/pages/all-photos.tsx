@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { isNavigationAllowed, setAllowedNavigation } from '../utils/auth';
+import Logo from '../components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -24,6 +25,7 @@ export default function AllPhotos() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [deletingPhotoIds, setDeletingPhotoIds] = useState<Set<string>>(new Set());
   const [accessDenied, setAccessDenied] = useState(false);
+  const [isGeneratingPoster, setIsGeneratingPoster] = useState(false);
 
   useEffect(() => {
     // Check if navigation is allowed
@@ -77,6 +79,11 @@ export default function AllPhotos() {
       if (newSet.has(photoId)) {
         newSet.delete(photoId);
       } else {
+        // Limit to 10 images
+        if (newSet.size >= 10) {
+          alert('You can select up to 10 images for the poster.');
+          return prev;
+        }
         newSet.add(photoId);
       }
       return newSet;
@@ -84,11 +91,349 @@ export default function AllPhotos() {
   };
 
   const selectAllPhotos = () => {
-    setSelectedPhotoIds(new Set(photos.map(p => p.id)));
+    // Limit to first 10 photos
+    const photosToSelect = photos.slice(0, 10).map(p => p.id);
+    setSelectedPhotoIds(new Set(photosToSelect));
   };
 
   const deselectAllPhotos = () => {
     setSelectedPhotoIds(new Set());
+  };
+
+  const createPoster = async () => {
+    if (selectedPhotoIds.size === 0 || selectedPhotoIds.size > 10) {
+      alert('Please select 1-10 images to create a poster.');
+      return;
+    }
+
+    setIsGeneratingPoster(true);
+    try {
+      const selectedPhotos = photos.filter(p => selectedPhotoIds.has(p.id));
+      
+      // Create canvas
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        throw new Error('Could not get canvas context');
+      }
+
+      // Set canvas size (standard poster size)
+      canvas.width = 2000;
+      canvas.height = 2400;
+
+      // Fetch poster settings to get background image and heading
+      let backgroundImage: HTMLImageElement | null = null;
+      let posterHeading = 'Our Memories'; // Default heading
+      try {
+        const settingsResponse = await fetch(`${API_URL}/events/poster-settings`);
+        if (settingsResponse.ok) {
+          const settingsResult = await settingsResponse.json();
+          if (settingsResult.data) {
+            posterHeading = settingsResult.data.poster_heading || 'Our Memories';
+            if (settingsResult.data.background_image_filename) {
+              const bgImg = new Image();
+              bgImg.crossOrigin = 'anonymous';
+              await new Promise((resolve, reject) => {
+                bgImg.onload = resolve;
+                bgImg.onerror = reject;
+                bgImg.src = `${API_URL}/events/image/${settingsResult.data.background_image_filename}`;
+              });
+              backgroundImage = bgImg;
+            }
+          }
+        }
+      } catch (err) {
+        console.log('Could not load poster settings, using defaults:', err);
+      }
+
+      // Draw background (image or solid color)
+      if (backgroundImage) {
+        // Draw background image to fill canvas
+        ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+        // Add slight overlay for better text visibility
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      } else {
+        // Default background color (warm orange/brown)
+        ctx.fillStyle = '#E8A87C';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Add title with elegant script-like style (bigger and better font)
+      ctx.fillStyle = '#FFFFFF';
+      // Try to use a script font, fallback to available fonts
+      ctx.font = 'bold 120px "Brush Script MT", "Lucida Handwriting", "Comic Sans MS", "Marker Felt", cursive, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+      ctx.shadowBlur = 15;
+      ctx.shadowOffsetX = 3;
+      ctx.shadowOffsetY = 3;
+      ctx.fillText(posterHeading, canvas.width / 2, 140);
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Load and draw images
+      const imagePromises = selectedPhotos.map((photo, index) => {
+        return new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = 'anonymous';
+          img.onload = () => resolve(img);
+          img.onerror = (err) => {
+            console.error('Error loading image:', photo.filename, err);
+            // Create a placeholder image if loading fails
+            const placeholder = new Image();
+            placeholder.onload = () => resolve(placeholder);
+            placeholder.onerror = reject;
+            // Create a simple colored placeholder
+            const canvas = document.createElement('canvas');
+            canvas.width = 400;
+            canvas.height = 400;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.fillStyle = '#CCCCCC';
+              ctx.fillRect(0, 0, 400, 400);
+              ctx.fillStyle = '#666666';
+              ctx.font = '30px Arial';
+              ctx.textAlign = 'center';
+              ctx.fillText('Image', 200, 200);
+              placeholder.src = canvas.toDataURL();
+            } else {
+              reject(new Error('Could not create placeholder'));
+            }
+          };
+          img.src = getImageUrl(photo);
+        });
+      });
+
+      const loadedImages = await Promise.all(imagePromises);
+
+      // Calculate grid layout based on number of images
+      const numImages = loadedImages.length;
+      let cols = 2;
+      let rows = 2;
+      
+      if (numImages <= 4) {
+        cols = 2;
+        rows = 2;
+      } else if (numImages <= 6) {
+        cols = 3;
+        rows = 2;
+      } else if (numImages <= 9) {
+        cols = 3;
+        rows = 3;
+      } else {
+        cols = 4;
+        rows = 3;
+      }
+
+      const polaroidWidth = (canvas.width - 300) / cols;
+      const polaroidHeight = polaroidWidth * 1.25; // Polaroid aspect ratio
+      const spacing = 60;
+      const startY = 250;
+      const startX = (canvas.width - (cols * polaroidWidth + (cols - 1) * spacing)) / 2;
+
+      // Draw polaroid photos with random rotations
+      loadedImages.forEach((img, index) => {
+        const col = index % cols;
+        const row = Math.floor(index / cols);
+        
+        // Base position
+        const baseX = startX + col * (polaroidWidth + spacing);
+        const baseY = startY + row * (polaroidHeight + spacing);
+        
+        // Random rotation angle (between -15 and 15 degrees)
+        const rotation = (Math.random() - 0.5) * 30 * (Math.PI / 180);
+        
+        // Center point for rotation
+        const centerX = baseX + polaroidWidth / 2;
+        const centerY = baseY + polaroidHeight / 2;
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.rotate(rotation);
+        ctx.translate(-polaroidWidth / 2, -polaroidHeight / 2);
+        
+        const x = 0;
+        const y = 0;
+
+        // Draw shadow effect first (behind, with rotation)
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        ctx.fillRect(x + 10, y + 10, polaroidWidth, polaroidHeight);
+
+        // Draw white polaroid frame
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(x, y, polaroidWidth, polaroidHeight);
+        
+        // Add subtle border
+        ctx.strokeStyle = '#E0E0E0';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, polaroidWidth, polaroidHeight);
+
+        // Calculate image area (with padding)
+        const imagePadding = 20;
+        const imageAreaWidth = polaroidWidth - imagePadding * 2;
+        const imageAreaHeight = polaroidHeight - imagePadding * 2 - 60; // Space for bottom border
+
+        // Calculate scaling to fit image in polaroid
+        const imgAspect = img.width / img.height;
+        const areaAspect = imageAreaWidth / imageAreaHeight;
+        
+        let drawWidth = imageAreaWidth;
+        let drawHeight = imageAreaHeight;
+        let drawX = x + imagePadding;
+        let drawY = y + imagePadding;
+
+        if (imgAspect > areaAspect) {
+          // Image is wider - fit to width
+          drawHeight = imageAreaWidth / imgAspect;
+          drawY = y + imagePadding + (imageAreaHeight - drawHeight) / 2;
+        } else {
+          // Image is taller - fit to height
+          drawWidth = imageAreaHeight * imgAspect;
+          drawX = x + imagePadding + (imageAreaWidth - drawWidth) / 2;
+        }
+
+        // Draw image
+        ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+        // Draw decorative paperclip on some polaroids
+        if (index % 3 === 0) {
+          ctx.save();
+          ctx.translate(x + polaroidWidth - 25, y + 15);
+          ctx.strokeStyle = '#CCCCCC';
+          ctx.fillStyle = '#CCCCCC';
+          ctx.lineWidth = 2;
+          // Draw paperclip shape
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.lineTo(8, 0);
+          ctx.arc(8, 4, 4, -Math.PI / 2, Math.PI / 2);
+          ctx.lineTo(12, 8);
+          ctx.arc(8, 12, 4, Math.PI / 2, -Math.PI / 2);
+          ctx.lineTo(0, 16);
+          ctx.stroke();
+          ctx.restore();
+        }
+        
+        ctx.restore();
+      });
+
+      // Add decorative elements scattered around
+      // Hearts
+      ctx.fillStyle = '#FFB6C1';
+      drawHeart(ctx, 120, 600, 35);
+      drawHeart(ctx, canvas.width - 120, 900, 30);
+      drawHeart(ctx, 180, canvas.height - 180, 25);
+      drawHeart(ctx, canvas.width - 200, 1400, 28);
+
+      // Flowers (simple circles with petals)
+      drawFlower(ctx, 80, 400, 45, '#FF69B4');
+      drawFlower(ctx, canvas.width - 80, 700, 40, '#FF1493');
+      drawFlower(ctx, 100, canvas.height - 250, 35, '#FF69B4');
+      drawFlower(ctx, canvas.width - 120, 1200, 38, '#FFB6C1');
+
+      // Sticky note
+      ctx.save();
+      ctx.translate(60, 500);
+      ctx.rotate(-0.1); // Slight rotation
+      ctx.fillStyle = '#FFFF99';
+      ctx.fillRect(0, 0, 130, 110);
+      ctx.strokeStyle = '#CCCCCC';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, 0, 130, 110);
+      ctx.fillStyle = '#333333';
+      ctx.font = 'bold 22px Arial';
+      ctx.textAlign = 'left';
+      ctx.fillText('Thank', 15, 40);
+      ctx.fillText('You!', 15, 70);
+      ctx.restore();
+
+      // Books stack
+      ctx.save();
+      ctx.translate(70, canvas.height - 220);
+      ctx.rotate(0.05);
+      ctx.fillStyle = '#FF6B6B';
+      ctx.fillRect(0, 0, 65, 85);
+      ctx.fillStyle = '#4ECDC4';
+      ctx.fillRect(5, 5, 65, 85);
+      ctx.fillStyle = '#FFE66D';
+      ctx.fillRect(10, 10, 65, 85);
+      ctx.restore();
+
+      // Pencil
+      ctx.save();
+      ctx.translate(canvas.width - 150, 400);
+      ctx.rotate(0.3);
+      ctx.fillStyle = '#FFD700';
+      ctx.fillRect(0, 0, 8, 60);
+      ctx.fillStyle = '#FFA500';
+      ctx.fillRect(0, 0, 8, 15);
+      ctx.fillStyle = '#C0C0C0';
+      ctx.fillRect(0, 55, 8, 5);
+      ctx.restore();
+
+      // Convert canvas to blob and download
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error('Failed to create poster image');
+        }
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `poster-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 'image/png');
+    } catch (error) {
+      console.error('Error creating poster:', error);
+      alert('Failed to create poster. Please try again.');
+    } finally {
+      setIsGeneratingPoster(false);
+    }
+  };
+
+  // Helper function to draw a heart
+  const drawHeart = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.beginPath();
+    ctx.moveTo(0, size / 4);
+    ctx.bezierCurveTo(0, 0, -size / 2, 0, -size / 2, size / 4);
+    ctx.bezierCurveTo(-size / 2, size / 2, 0, size, 0, size);
+    ctx.bezierCurveTo(0, size, size / 2, size / 2, size / 2, size / 4);
+    ctx.bezierCurveTo(size / 2, 0, 0, 0, 0, size / 4);
+    ctx.fill();
+    ctx.restore();
+  };
+
+  // Helper function to draw a flower
+  const drawFlower = (ctx: CanvasRenderingContext2D, x: number, y: number, size: number, color: string) => {
+    ctx.save();
+    ctx.translate(x, y);
+    
+    // Petals
+    ctx.fillStyle = color;
+    for (let i = 0; i < 8; i++) {
+      ctx.save();
+      ctx.rotate((i * Math.PI * 2) / 8);
+      ctx.beginPath();
+      ctx.ellipse(0, -size / 2, size / 3, size / 2, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    
+    // Center
+    ctx.fillStyle = '#FFD700';
+    ctx.beginPath();
+    ctx.arc(0, 0, size / 4, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.restore();
   };
 
   const handleBulkDelete = async () => {
@@ -199,6 +544,13 @@ export default function AllPhotos() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Logo Header */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <Logo size={80} showText={true} />
+          </Link>
+        </div>
+        
         {/* Header */}
         <div style={{ 
           display: 'flex', 
@@ -228,6 +580,24 @@ export default function AllPhotos() {
           }}>
             {isSelectionMode ? (
               <>
+                {selectedPhotoIds.size > 0 && selectedPhotoIds.size <= 10 && (
+                  <button
+                    onClick={createPoster}
+                    disabled={isGeneratingPoster}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: isGeneratingPoster ? '#ccc' : '#FF6B6B',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontWeight: '500',
+                      cursor: isGeneratingPoster ? 'not-allowed' : 'pointer',
+                      marginRight: '10px'
+                    }}
+                  >
+                    {isGeneratingPoster ? 'Creating Poster...' : `Create Poster (${selectedPhotoIds.size})`}
+                  </button>
+                )}
                 {selectedPhotoIds.size > 0 && (
                   <button
                     onClick={handleBulkDelete}
@@ -389,7 +759,7 @@ export default function AllPhotos() {
                 {selectedPhotoIds.size === photos.length ? 'Deselect All' : 'Select All'}
               </button>
               <span style={{ color: '#666', fontSize: '14px' }}>
-                {selectedPhotoIds.size} of {photos.length} selected
+                {selectedPhotoIds.size} of {Math.min(photos.length, 10)} selected (max 10 for poster)
               </span>
             </div>
           </div>
@@ -439,11 +809,13 @@ export default function AllPhotos() {
                       type="checkbox"
                       checked={selectedPhotoIds.has(photo.id)}
                       onChange={() => togglePhotoSelection(photo.id)}
+                      disabled={!selectedPhotoIds.has(photo.id) && selectedPhotoIds.size >= 10}
                       style={{
                         width: '24px',
                         height: '24px',
-                        cursor: 'pointer',
-                        accentColor: '#C5BE77'
+                        cursor: (!selectedPhotoIds.has(photo.id) && selectedPhotoIds.size >= 10) ? 'not-allowed' : 'pointer',
+                        accentColor: '#C5BE77',
+                        opacity: (!selectedPhotoIds.has(photo.id) && selectedPhotoIds.size >= 10) ? 0.5 : 1
                       }}
                     />
                   </div>

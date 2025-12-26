@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 import { isNavigationAllowed, setAllowedNavigation } from '../utils/auth';
+import Logo from '../components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -152,6 +153,13 @@ export default function Gallery() {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+        {/* Logo Header */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <Logo size={80} showText={true} />
+          </Link>
+        </div>
+        
         {/* Header */}
         <div style={{ 
           display: 'flex', 

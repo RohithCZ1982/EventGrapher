@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { setAllowedNavigation } from '../utils/auth';
+import Logo from '../components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -277,12 +278,20 @@ export default function Home() {
   return (
     <>
       <Head>
+        <title>EventGrapher - Capture Your Event Memories</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&display=swap" rel="stylesheet" />
       </Head>
       <div style={{ minHeight: '100vh', backgroundColor: '#f5f5f5', padding: '20px' }}>
         <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+        {/* Logo Header */}
+        <div style={{ textAlign: 'center', marginBottom: '30px' }}>
+          <Link href="/" style={{ textDecoration: 'none' }}>
+            <Logo size={100} showText={true} />
+          </Link>
+        </div>
+        
         {/* Event Header Section */}
         {!loadingEvent && eventData && (
           <div style={{

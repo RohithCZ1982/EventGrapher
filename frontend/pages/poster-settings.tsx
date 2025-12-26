@@ -1,29 +1,25 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { isAdminAuthenticated, authenticateAdmin, setAllowedNavigation, logoutAdmin } from '../utils/auth';
+import { isAdminAuthenticated, authenticateAdmin, setAllowedNavigation } from '../utils/auth';
 import Logo from '../components/Logo';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface EventData {
-  event_name: string;
-  welcome_message: string;
-  image_filename: string | null;
+interface PosterSettings {
+  poster_heading: string | null;
   background_image_filename: string | null;
-  updated_at?: string;
 }
 
-export default function Admin() {
+export default function PosterSettings() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
-  const [eventName, setEventName] = useState('');
-  const [welcomeMessage, setWelcomeMessage] = useState('');
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [existingImageUrl, setExistingImageUrl] = useState<string | null>(null);
+  const [posterHeading, setPosterHeading] = useState('');
+  const [selectedBackgroundImage, setSelectedBackgroundImage] = useState<File | null>(null);
+  const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(null);
+  const [existingBackgroundImageUrl, setExistingBackgroundImageUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +31,7 @@ export default function Admin() {
       const authStatus = isAdminAuthenticated();
       setIsAuthenticated(authStatus);
       if (authStatus) {
-        loadExistingEvent();
+        loadExistingSettings();
       }
     }
   }, []);
@@ -46,49 +42,47 @@ export default function Admin() {
     
     if (authenticateAdmin(password)) {
       setIsAuthenticated(true);
-      loadExistingEvent();
+      loadExistingSettings();
     } else {
       setPasswordError('Incorrect password. Please try again.');
       setPassword('');
     }
   };
 
-  const loadExistingEvent = async () => {
+  const loadExistingSettings = async () => {
     try {
       setLoadingExisting(true);
-      const response = await fetch(`${API_URL}/events/`);
+      const response = await fetch(`${API_URL}/events/poster-settings`);
       if (response.ok) {
         const result = await response.json();
         if (result.data) {
-          setEventName(result.data.event_name || '');
-          setWelcomeMessage(result.data.welcome_message || '');
-          if (result.data.image_filename) {
-            setExistingImageUrl(`${API_URL}/events/image/${result.data.image_filename}`);
+          setPosterHeading(result.data.poster_heading || 'Our Memories');
+          if (result.data.background_image_filename) {
+            setExistingBackgroundImageUrl(`${API_URL}/events/image/${result.data.background_image_filename}`);
           }
         }
       }
     } catch (err) {
-      console.error('Error loading event:', err);
+      console.error('Error loading poster settings:', err);
     } finally {
       setLoadingExisting(false);
     }
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBackgroundImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedImage(file);
-      setExistingImageUrl(null); // Clear existing image preview
+      setSelectedBackgroundImage(file);
+      setExistingBackgroundImageUrl(null); // Clear existing image preview
       
       // Create preview URL
       const reader = new FileReader();
       reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
+        setBackgroundPreviewUrl(reader.result as string);
       };
       reader.readAsDataURL(file);
     }
   };
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,29 +92,28 @@ export default function Admin() {
 
     try {
       const formData = new FormData();
-      formData.append('event_name', eventName);
-      formData.append('welcome_message', welcomeMessage);
-      if (selectedImage) {
-        formData.append('image', selectedImage);
+      formData.append('poster_heading', posterHeading || 'Our Memories');
+      if (selectedBackgroundImage) {
+        formData.append('background_image', selectedBackgroundImage);
       }
 
-      const response = await fetch(`${API_URL}/events/`, {
+      const response = await fetch(`${API_URL}/events/poster-settings`, {
         method: 'POST',
         body: formData,
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ detail: response.statusText }));
-        throw new Error(errorData.detail || 'Failed to save event');
+        throw new Error(errorData.detail || 'Failed to save poster settings');
       }
 
       const result = await response.json();
       setSuccess(true);
-      setSelectedImage(null);
-      setPreviewUrl(null);
+      setSelectedBackgroundImage(null);
+      setBackgroundPreviewUrl(null);
       
       // Reload to get updated image URL
-      await loadExistingEvent();
+      await loadExistingSettings();
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
@@ -131,7 +124,7 @@ export default function Admin() {
     }
   };
 
-  const displayImageUrl = previewUrl || existingImageUrl;
+  const displayImageUrl = backgroundPreviewUrl || existingBackgroundImageUrl;
 
   // Show password form if not authenticated
   if (!isAuthenticated) {
@@ -153,43 +146,44 @@ export default function Admin() {
           boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
         }}>
           <h1 style={{ 
-            fontSize: '32px', 
+            fontSize: '28px', 
             fontWeight: '700', 
-            margin: '0 0 10px 0',
-            textAlign: 'center',
-            color: '#333'
+            color: '#333',
+            marginBottom: '10px',
+            textAlign: 'center'
           }}>
-            Admin Access
+            Poster Settings
           </h1>
           <p style={{ 
-            fontSize: '16px', 
-            textAlign: 'center',
+            fontSize: '14px', 
             color: '#666',
-            marginBottom: '30px'
+            marginBottom: '30px',
+            textAlign: 'center'
           }}>
-            Please enter the password to access the admin panel
+            Please enter the admin password to access poster settings
           </p>
           
           <form onSubmit={handlePasswordSubmit}>
-            <div style={{ marginBottom: '20px' }}>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                required
-                style={{
-                  width: '100%',
-                  padding: '14px 18px',
-                  fontSize: '16px',
-                  border: '2px solid #e0e0e0',
-                  borderRadius: '12px',
-                  outline: 'none',
-                  boxSizing: 'border-box'
-                }}
-                autoFocus
-              />
-            </div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter password..."
+              required
+              style={{
+                width: '100%',
+                padding: '14px 18px',
+                fontSize: '16px',
+                border: '2px solid #e0e0e0',
+                borderRadius: '12px',
+                outline: 'none',
+                transition: 'all 0.3s',
+                boxSizing: 'border-box',
+                marginBottom: '20px'
+              }}
+              onFocus={(e) => e.target.style.borderColor = '#C5BE77'}
+              onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+            />
             
             {passwordError && (
               <div style={{
@@ -218,7 +212,7 @@ export default function Admin() {
                 cursor: 'pointer'
               }}
             >
-              Access Admin Panel
+              Access Poster Settings
             </button>
           </form>
           
@@ -249,40 +243,17 @@ export default function Admin() {
             margin: '0 0 10px 0',
             textShadow: '0 2px 10px rgba(0,0,0,0.2)'
           }}>
-            Event Settings Panel
+            Poster Settings
           </h1>
           <p style={{ fontSize: '18px', opacity: 0.9 }}>
-            Manage your event information
+            Customize your poster appearance
           </p>
         </div>
 
         {/* Navigation */}
         <div style={{ marginBottom: '30px', textAlign: 'center' }}>
-          <button
-            onClick={() => {
-              logoutAdmin();
-              setIsAuthenticated(false);
-              router.push('/');
-            }}
-            style={{
-              display: 'inline-block',
-              padding: '10px 20px',
-              backgroundColor: 'rgba(255,255,255,0.2)',
-              color: 'white',
-              textDecoration: 'none',
-              borderRadius: '8px',
-              marginRight: '10px',
-              backdropFilter: 'blur(10px)',
-              border: '1px solid rgba(255,255,255,0.3)',
-              cursor: 'pointer',
-              fontSize: '14px',
-              fontFamily: 'inherit'
-            }}
-          >
-            Logout
-          </button>
           <Link 
-            href="/poster-settings" 
+            href="/admin" 
             onClick={() => {
               if (typeof window !== 'undefined') {
                 setAllowedNavigation('admin');
@@ -300,7 +271,7 @@ export default function Admin() {
               border: '1px solid rgba(255,255,255,0.3)',
               transition: 'all 0.3s'
             }}>
-            Poster Settings
+            Admin Panel
           </Link>
           <Link 
             href="/all-photos" 
@@ -333,11 +304,11 @@ export default function Admin() {
         }}>
           {loadingExisting ? (
             <div style={{ textAlign: 'center', padding: '40px' }}>
-              <p style={{ color: '#666' }}>Loading event data...</p>
+              <p style={{ color: '#666' }}>Loading poster settings...</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              {/* Event Name */}
+              {/* Poster Heading */}
               <div style={{ marginBottom: '30px' }}>
                 <label style={{
                   display: 'block',
@@ -346,14 +317,17 @@ export default function Admin() {
                   color: '#333',
                   marginBottom: '10px'
                 }}>
-                  Event Name *
+                  Poster Heading *
                 </label>
+                <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                  This text will appear at the top of generated posters
+                </p>
                 <input
                   type="text"
-                  value={eventName}
-                  onChange={(e) => setEventName(e.target.value)}
+                  value={posterHeading}
+                  onChange={(e) => setPosterHeading(e.target.value)}
                   required
-                  placeholder="Enter event name..."
+                  placeholder="Enter poster heading (e.g., Our Memories, Make it happen)"
                   style={{
                     width: '100%',
                     padding: '14px 18px',
@@ -369,7 +343,7 @@ export default function Admin() {
                 />
               </div>
 
-              {/* Welcome Message */}
+              {/* Background Image Upload */}
               <div style={{ marginBottom: '30px' }}>
                 <label style={{
                   display: 'block',
@@ -378,42 +352,11 @@ export default function Admin() {
                   color: '#333',
                   marginBottom: '10px'
                 }}>
-                  Welcome Message *
+                  Background Image
                 </label>
-                <textarea
-                  value={welcomeMessage}
-                  onChange={(e) => setWelcomeMessage(e.target.value)}
-                  required
-                  placeholder="Enter a welcome message for your event..."
-                  rows={5}
-                  style={{
-                    width: '100%',
-                    padding: '14px 18px',
-                    fontSize: '16px',
-                    border: '2px solid #e0e0e0',
-                    borderRadius: '12px',
-                    outline: 'none',
-                    transition: 'all 0.3s',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    boxSizing: 'border-box'
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#C5BE77'}
-                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
-                />
-              </div>
-
-              {/* Image Upload */}
-              <div style={{ marginBottom: '30px' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '16px',
-                  fontWeight: '600',
-                  color: '#333',
-                  marginBottom: '10px'
-                }}>
-                  Event Image
-                </label>
+                <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                  This image will be used as the background when creating posters from the All Photos page
+                </p>
                 <div style={{
                   border: '2px dashed #e0e0e0',
                   borderRadius: '12px',
@@ -425,12 +368,12 @@ export default function Admin() {
                   <input
                     type="file"
                     accept="image/*"
-                    onChange={handleImageChange}
-                    id="image-upload"
+                    onChange={handleBackgroundImageChange}
+                    id="background-image-upload"
                     style={{ display: 'none' }}
                   />
                   <label
-                    htmlFor="image-upload"
+                    htmlFor="background-image-upload"
                     style={{
                       cursor: 'pointer',
                       display: 'block'
@@ -440,7 +383,7 @@ export default function Admin() {
                       <div>
                         <img
                           src={displayImageUrl}
-                          alt="Event preview"
+                          alt="Background preview"
                           style={{
                             maxWidth: '100%',
                             maxHeight: '300px',
@@ -450,14 +393,14 @@ export default function Admin() {
                           }}
                         />
                         <p style={{ color: '#666', margin: 0 }}>
-                          Click to change image
+                          Click to change background image
                         </p>
                       </div>
                     ) : (
                       <div>
-                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
+                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>🖼️</div>
                         <p style={{ color: '#666', margin: '5px 0' }}>
-                          Click to upload an image
+                          Click to upload a background image
                         </p>
                         <p style={{ color: '#999', fontSize: '14px', margin: 0 }}>
                           PNG, JPG, GIF up to 10MB
@@ -492,7 +435,7 @@ export default function Admin() {
                   marginBottom: '20px',
                   border: '1px solid #cfc'
                 }}>
-                  ✓ Event information saved successfully!
+                  ✓ Poster settings saved successfully!
                 </div>
               )}
 
@@ -510,23 +453,10 @@ export default function Admin() {
                   border: 'none',
                   borderRadius: '12px',
                   cursor: loading ? 'not-allowed' : 'pointer',
-                  boxShadow: loading ? 'none' : '0 4px 15px rgba(197, 190, 119, 0.4)',
                   transition: 'all 0.3s'
                 }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.transform = 'translateY(-2px)';
-                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(197, 190, 119, 0.5)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 4px 15px rgba(197, 190, 119, 0.4)';
-                  }
-                }}
               >
-                {loading ? 'Saving...' : 'Save Event Information'}
+                {loading ? 'Saving...' : 'Save Poster Settings'}
               </button>
             </form>
           )}
