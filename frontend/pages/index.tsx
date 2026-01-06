@@ -57,6 +57,34 @@ export default function Home() {
     return `${API_URL}/events/image/${imageFilename}`;
   };
 
+  const downloadImage = async (photoUrl: string, filename: string) => {
+    try {
+      const fullUrl = photoUrl.startsWith('http') ? photoUrl : `${API_URL}${photoUrl}`;
+      const response = await fetch(fullUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      console.error('Failed to download photo:', err);
+    }
+  };
+
+  const downloadAllUploaded = async () => {
+    if (uploadResults.length === 0) return;
+    
+    for (const result of uploadResults) {
+      await downloadImage(result.url, result.filename || result.original_filename);
+      // Small delay between downloads
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
@@ -257,12 +285,66 @@ export default function Home() {
             <div style={{
               backgroundColor: '#efe',
               color: '#3c3',
-              padding: '12px',
+              padding: '15px',
               borderRadius: '4px',
               marginBottom: '20px',
               border: '1px solid #cfc'
             }}>
-              Successfully uploaded {uploadResults.length} file{uploadResults.length > 1 ? 's' : ''}!
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <p style={{ margin: 0, fontWeight: '600' }}>
+                  ✓ Successfully uploaded {uploadResults.length} file{uploadResults.length > 1 ? 's' : ''}!
+                </p>
+                <button
+                  onClick={downloadAllUploaded}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#4CAF50',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Download All
+                </button>
+              </div>
+              <div style={{ marginTop: '10px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {uploadResults.map((result, index) => (
+                  <div
+                    key={index}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      backgroundColor: 'white',
+                      padding: '6px 10px',
+                      borderRadius: '4px',
+                      fontSize: '12px'
+                    }}
+                  >
+                    <span style={{ color: '#666' }}>
+                      {result.original_filename || result.filename}
+                    </span>
+                    <button
+                      onClick={() => downloadImage(result.url, result.filename || result.original_filename)}
+                      style={{
+                        padding: '2px 8px',
+                        backgroundColor: '#4CAF50',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '3px',
+                        cursor: 'pointer',
+                        fontSize: '11px'
+                      }}
+                      title="Download this photo"
+                    >
+                      ⬇
+                    </button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

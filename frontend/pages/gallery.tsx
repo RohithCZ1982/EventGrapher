@@ -30,6 +30,8 @@ export default function Gallery() {
   const [error, setError] = useState<string | null>(null);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null);
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [downloading, setDownloading] = useState(false);
 
   useEffect(() => {
     fetchPhotos();
@@ -67,6 +69,63 @@ export default function Gallery() {
 
   const getImageUrl = (photo: Photo): string => {
     return `${API_URL}${photo.url}`;
+  };
+
+  const downloadImage = async (photo: Photo) => {
+    try {
+      const imageUrl = getImageUrl(photo);
+      const response = await fetch(imageUrl);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = photo.filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download photo');
+    }
+  };
+
+  const downloadSelectedPhotos = async () => {
+    if (selectedPhotos.size === 0) return;
+    
+    setDownloading(true);
+    try {
+      const photosToDownload = photos.filter(p => selectedPhotos.has(p.id));
+      
+      for (const photo of photosToDownload) {
+        await downloadImage(photo);
+        // Small delay between downloads to avoid overwhelming the browser
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+      
+      setSelectedPhotos(new Set());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download photos');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const togglePhotoSelection = (photoId: string) => {
+    const newSelected = new Set(selectedPhotos);
+    if (newSelected.has(photoId)) {
+      newSelected.delete(photoId);
+    } else {
+      newSelected.add(photoId);
+    }
+    setSelectedPhotos(newSelected);
+  };
+
+  const selectAllPhotos = () => {
+    if (selectedPhotos.size === photos.length) {
+      setSelectedPhotos(new Set());
+    } else {
+      setSelectedPhotos(new Set(photos.map(p => p.id)));
+    }
   };
 
   const handleDeletePhoto = async (photo: Photo, e: React.MouseEvent) => {
@@ -122,9 +181,45 @@ export default function Gallery() {
             <h1 style={{ margin: 0, fontSize: '28px', color: '#333' }}>Photo Gallery</h1>
             <p style={{ margin: '5px 0 0 0', color: '#666' }}>
               {photos.length} {photos.length === 1 ? 'photo' : 'photos'}
+              {selectedPhotos.size > 0 && ` • ${selectedPhotos.size} selected`}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            {photos.length > 0 && (
+              <>
+                <button
+                  onClick={selectAllPhotos}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: selectedPhotos.size === photos.length ? '#666' : '#C5BE77',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {selectedPhotos.size === photos.length ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedPhotos.size > 0 && (
+                  <button
+                    onClick={downloadSelectedPhotos}
+                    disabled={downloading}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: downloading ? '#ccc' : '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontWeight: '500',
+                      cursor: downloading ? 'not-allowed' : 'pointer'
+                    }}
+                  >
+                    {downloading ? 'Downloading...' : `Download (${selectedPhotos.size})`}
+                  </button>
+                )}
+              </>
+            )}
             <Link href="/" style={{
               padding: '10px 20px',
               backgroundColor: '#C5BE77',
@@ -229,17 +324,22 @@ export default function Gallery() {
                   backgroundColor: 'white',
                   borderRadius: '8px',
                   overflow: 'hidden',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                  boxShadow: selectedPhotos.has(photo.id) ? '0 4px 12px rgba(76, 175, 80, 0.5)' : '0 2px 8px rgba(0,0,0,0.1)',
                   transition: 'transform 0.2s, box-shadow 0.2s',
-                  position: 'relative'
+                  position: 'relative',
+                  border: selectedPhotos.has(photo.id) ? '3px solid #4CAF50' : '3px solid transparent'
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = 'translateY(-4px)';
-                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+                  e.currentTarget.style.boxShadow = selectedPhotos.has(photo.id) 
+                    ? '0 6px 16px rgba(76, 175, 80, 0.6)' 
+                    : '0 4px 12px rgba(0,0,0,0.15)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.1)';
+                  e.currentTarget.style.boxShadow = selectedPhotos.has(photo.id)
+                    ? '0 4px 12px rgba(76, 175, 80, 0.5)'
+                    : '0 2px 8px rgba(0,0,0,0.1)';
                 }}
               >
                 <div 
@@ -281,6 +381,33 @@ export default function Gallery() {
                         Deleting...
                       </div>
                     )}
+                    {/* Selection Checkbox */}
+                    <div
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        togglePhotoSelection(photo.id);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        left: '8px',
+                        width: '24px',
+                        height: '24px',
+                        backgroundColor: selectedPhotos.has(photo.id) ? '#4CAF50' : 'rgba(255, 255, 255, 0.9)',
+                        border: '2px solid ' + (selectedPhotos.has(photo.id) ? '#4CAF50' : '#ccc'),
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 10,
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {selectedPhotos.has(photo.id) && (
+                        <span style={{ color: 'white', fontSize: '16px', fontWeight: 'bold' }}>✓</span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ padding: '12px' }}>
                     <p style={{ 
@@ -319,7 +446,8 @@ export default function Gallery() {
                     color: '#c33',
                     boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
                     transition: 'all 0.2s',
-                    opacity: deletingPhotoId === photo.id ? 0.6 : 1
+                    opacity: deletingPhotoId === photo.id ? 0.6 : 1,
+                    zIndex: 10
                   }}
                   onMouseEnter={(e) => {
                     if (deletingPhotoId !== photo.id) {
@@ -334,6 +462,42 @@ export default function Gallery() {
                   title="Delete photo"
                 >
                   ×
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadImage(photo);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    bottom: '8px',
+                    right: '8px',
+                    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '16px',
+                    color: 'white',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+                    transition: 'all 0.2s',
+                    zIndex: 10
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(76, 175, 80, 1)';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(76, 175, 80, 0.9)';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                  title="Download photo"
+                >
+                  ⬇
                 </button>
               </div>
             ))}
@@ -407,26 +571,44 @@ export default function Gallery() {
                 <p style={{ margin: '5px 0', opacity: 0.8 }}>
                   {formatFileSize(selectedPhoto.size)} • {formatDate(selectedPhoto.uploaded_at)}
                 </p>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeletePhoto(selectedPhoto, e);
-                  }}
-                  disabled={deletingPhotoId === selectedPhoto.id}
-                  style={{
-                    marginTop: '10px',
-                    padding: '8px 16px',
-                    backgroundColor: '#c33',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: deletingPhotoId === selectedPhoto.id ? 'not-allowed' : 'pointer',
-                    fontSize: '14px',
-                    opacity: deletingPhotoId === selectedPhoto.id ? 0.6 : 1
-                  }}
-                >
-                  {deletingPhotoId === selectedPhoto.id ? 'Deleting...' : 'Delete Photo'}
-                </button>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '10px' }}>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      downloadImage(selectedPhoto);
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: 'pointer',
+                      fontSize: '14px'
+                    }}
+                  >
+                    Download Photo
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeletePhoto(selectedPhoto, e);
+                    }}
+                    disabled={deletingPhotoId === selectedPhoto.id}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#c33',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      cursor: deletingPhotoId === selectedPhoto.id ? 'not-allowed' : 'pointer',
+                      fontSize: '14px',
+                      opacity: deletingPhotoId === selectedPhoto.id ? 0.6 : 1
+                    }}
+                  >
+                    {deletingPhotoId === selectedPhoto.id ? 'Deleting...' : 'Delete Photo'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
