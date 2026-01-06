@@ -14,6 +14,13 @@ interface EventData {
   updated_at?: string;
 }
 
+interface UploadResult {
+  success: boolean;
+  file: string;
+  result?: any;
+  error?: string;
+}
+
 export default function Admin() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -28,6 +35,12 @@ export default function Admin() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingExisting, setLoadingExisting] = useState(true);
+  // Bulk upload states
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [uploadingBulk, setUploadingBulk] = useState(false);
+  const [uploadResults, setUploadResults] = useState<any[]>([]);
+  const [bulkError, setBulkError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<{ [key: string]: number }>({});
 
   useEffect(() => {
     // Check authentication on mount
@@ -86,6 +99,109 @@ export default function Admin() {
         setPreviewUrl(reader.result as string);
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const handleBulkFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setBulkFiles(Array.from(e.target.files));
+      setBulkError(null);
+      setUploadResults([]);
+    }
+  };
+
+  const handleBulkUpload = async () => {
+    if (bulkFiles.length === 0) {
+      setBulkError('Please select at least one file to upload');
+      return;
+    }
+
+    setUploadingBulk(true);
+    setBulkError(null);
+    setUploadResults([]);
+    setUploadProgress({});
+
+    try {
+      const uploadPromises = bulkFiles.map(async (file, index) => {
+        const formData = new FormData();
+        formData.append('file', file);
+        // Admin uploads don't need user_id
+
+        // Create a unique key for this file
+        const fileKey = `${file.name}-${index}`;
+        
+        // Use XMLHttpRequest for progress tracking
+        return new Promise<UploadResult>((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          
+          // Track upload progress
+          xhr.upload.addEventListener('progress', (e) => {
+            if (e.lengthComputable) {
+              const percentComplete = (e.loaded / e.total) * 100;
+              setUploadProgress(prev => ({ ...prev, [fileKey]: percentComplete }));
+            }
+          });
+
+          xhr.addEventListener('load', () => {
+            if (xhr.status === 200) {
+              try {
+                const result = JSON.parse(xhr.responseText);
+                setUploadProgress(prev => ({ ...prev, [fileKey]: 100 }));
+                resolve({ success: true, file: file.name, result });
+              } catch (err) {
+                reject({ success: false, file: file.name, error: 'Invalid response' });
+              }
+            } else {
+              try {
+                const errorData = JSON.parse(xhr.responseText);
+                reject({ success: false, file: file.name, error: errorData.detail || xhr.statusText });
+              } catch {
+                reject({ success: false, file: file.name, error: xhr.statusText });
+              }
+            }
+          });
+
+          xhr.addEventListener('error', () => {
+            reject({ success: false, file: file.name, error: 'Network error' });
+          });
+
+          xhr.open('POST', `${API_URL}/upload/`);
+          xhr.send(formData);
+        });
+      });
+
+      const results = await Promise.allSettled(uploadPromises);
+      const processedResults: UploadResult[] = results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value as UploadResult;
+        } else {
+          return { success: false, file: bulkFiles[index].name, error: (result.reason as any)?.error || 'Upload failed' };
+        }
+      });
+
+      setUploadResults(processedResults);
+      const successful = processedResults.filter((r: UploadResult) => r.success).length;
+      const failed = processedResults.filter((r: UploadResult) => !r.success).length;
+
+      if (failed > 0) {
+        setBulkError(`${successful} file(s) uploaded successfully. ${failed} file(s) failed.`);
+      } else {
+        setBulkError(null);
+      }
+
+      // Clear files after successful upload
+      if (failed === 0) {
+        setBulkFiles([]);
+        const fileInput = document.getElementById('bulk-file-input') as HTMLInputElement;
+        if (fileInput) {
+          fileInput.value = '';
+        }
+      }
+    } catch (err) {
+      setBulkError(err instanceof Error ? err.message : 'An error occurred during bulk upload');
+    } finally {
+      setUploadingBulk(false);
+      setTimeout(() => setUploadProgress({}), 2000); // Clear progress after 2 seconds
     }
   };
 
@@ -316,11 +432,32 @@ export default function Admin() {
               color: 'white',
               textDecoration: 'none',
               borderRadius: '8px',
+              marginRight: '10px',
               backdropFilter: 'blur(10px)',
               border: '1px solid rgba(255,255,255,0.3)',
               transition: 'all 0.3s'
             }}>
             View All Photos
+          </Link>
+          <Link 
+            href="/slideshow" 
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                setAllowedNavigation('admin');
+              }
+            }}
+            style={{
+              display: 'inline-block',
+              padding: '10px 20px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              textDecoration: 'none',
+              borderRadius: '8px',
+              backdropFilter: 'blur(10px)',
+              border: '1px solid rgba(255,255,255,0.3)',
+              transition: 'all 0.3s'
+            }}>
+            View Slideshow
           </Link>
         </div>
 
@@ -529,6 +666,198 @@ export default function Admin() {
                 {loading ? 'Saving...' : 'Save Event Information'}
               </button>
             </form>
+          )}
+        </div>
+
+        {/* Bulk Upload Section */}
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '20px',
+          padding: '40px',
+          marginTop: '30px',
+          boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+        }}>
+          <h2 style={{
+            fontSize: '24px',
+            fontWeight: '700',
+            color: '#333',
+            marginBottom: '10px'
+          }}>
+            Bulk Upload Photos & Videos
+          </h2>
+          <p style={{
+            fontSize: '14px',
+            color: '#666',
+            marginBottom: '30px'
+          }}>
+            Upload multiple photos and videos at once. All files will be available in the gallery and slideshow.
+          </p>
+
+          <div style={{
+            border: '2px dashed #e0e0e0',
+            borderRadius: '12px',
+            padding: '30px',
+            textAlign: 'center',
+            backgroundColor: '#fafafa',
+            marginBottom: '20px',
+            transition: 'all 0.3s'
+          }}>
+            <input
+              type="file"
+              accept="image/*,video/*"
+              onChange={handleBulkFileChange}
+              id="bulk-file-input"
+              multiple
+              disabled={uploadingBulk}
+              style={{ display: 'none' }}
+            />
+            <label
+              htmlFor="bulk-file-input"
+              style={{
+                cursor: uploadingBulk ? 'not-allowed' : 'pointer',
+                display: 'block'
+              }}
+            >
+              {bulkFiles.length > 0 ? (
+                <div>
+                  <div style={{ fontSize: '48px', marginBottom: '10px' }}>📁</div>
+                  <p style={{ color: '#666', margin: '5px 0', fontWeight: '600' }}>
+                    {bulkFiles.length} file{bulkFiles.length > 1 ? 's' : ''} selected
+                  </p>
+                  <div style={{
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    margin: '15px 0',
+                    textAlign: 'left',
+                    backgroundColor: 'white',
+                    padding: '15px',
+                    borderRadius: '8px',
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    {bulkFiles.map((file, index) => (
+                      <div key={index} style={{
+                        padding: '8px 0',
+                        borderBottom: index < bulkFiles.length - 1 ? '1px solid #f0f0f0' : 'none',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <span style={{ color: '#333', fontSize: '14px' }}>{file.name}</span>
+                        <span style={{ color: '#999', fontSize: '12px' }}>
+                          {(file.size / 1024 / 1024).toFixed(2)} MB
+                        </span>
+                        {uploadProgress[`${file.name}-${index}`] !== undefined && (
+                          <div style={{
+                            width: '100px',
+                            height: '6px',
+                            backgroundColor: '#e0e0e0',
+                            borderRadius: '3px',
+                            overflow: 'hidden',
+                            marginLeft: '10px'
+                          }}>
+                            <div style={{
+                              width: `${uploadProgress[`${file.name}-${index}`]}%`,
+                              height: '100%',
+                              backgroundColor: '#C5BE77',
+                              transition: 'width 0.3s'
+                            }}></div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color: '#999', fontSize: '12px', margin: '5px 0' }}>
+                    Click to change files
+                  </p>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontSize: '48px', marginBottom: '10px' }}>📤</div>
+                  <p style={{ color: '#666', margin: '5px 0' }}>
+                    Click to select multiple files
+                  </p>
+                  <p style={{ color: '#999', fontSize: '14px', margin: 0 }}>
+                    Images and videos up to 10MB each
+                  </p>
+                </div>
+              )}
+            </label>
+          </div>
+
+          {bulkFiles.length > 0 && (
+            <button
+              onClick={handleBulkUpload}
+              disabled={uploadingBulk}
+              style={{
+                width: '100%',
+                padding: '16px',
+                fontSize: '18px',
+                fontWeight: '600',
+                color: 'white',
+                backgroundColor: uploadingBulk ? '#ccc' : '#C5BE77',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: uploadingBulk ? 'not-allowed' : 'pointer',
+                boxShadow: uploadingBulk ? 'none' : '0 4px 15px rgba(197, 190, 119, 0.4)',
+                transition: 'all 0.3s',
+                marginBottom: '20px'
+              }}
+            >
+              {uploadingBulk ? `Uploading... (${Object.keys(uploadProgress).length}/${bulkFiles.length})` : `Upload ${bulkFiles.length} File${bulkFiles.length > 1 ? 's' : ''}`}
+            </button>
+          )}
+
+          {/* Upload Results */}
+          {uploadResults.length > 0 && (
+            <div style={{
+              marginTop: '20px',
+              padding: '15px',
+              backgroundColor: '#f9f9f9',
+              borderRadius: '8px',
+              border: '1px solid #e0e0e0'
+            }}>
+              <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#333', marginBottom: '10px' }}>
+                Upload Results:
+              </h3>
+              <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                {uploadResults.map((result, index) => (
+                  <div key={index} style={{
+                    padding: '8px 0',
+                    borderBottom: index < uploadResults.length - 1 ? '1px solid #e0e0e0' : 'none',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span style={{
+                      color: result.success ? '#3c3' : '#c33',
+                      fontSize: '14px',
+                      flex: 1
+                    }}>
+                      {result.success ? '✓' : '✗'} {result.file}
+                    </span>
+                    {!result.success && (
+                      <span style={{ color: '#c33', fontSize: '12px', marginLeft: '10px' }}>
+                        {result.error}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Upload Error */}
+          {bulkError && (
+            <div style={{
+              backgroundColor: bulkError.includes('successfully') ? '#efe' : '#fee',
+              color: bulkError.includes('successfully') ? '#3c3' : '#c33',
+              padding: '15px',
+              borderRadius: '10px',
+              marginTop: '20px',
+              border: `1px solid ${bulkError.includes('successfully') ? '#cfc' : '#fcc'}`
+            }}>
+              {bulkError}
+            </div>
           )}
         </div>
       </div>

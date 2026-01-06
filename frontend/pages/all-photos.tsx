@@ -159,16 +159,21 @@ export default function AllPhotos() {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      // Add title with elegant script-like style (bigger and better font)
-      ctx.fillStyle = '#FFFFFF';
-      // Try to use a script font, fallback to available fonts
-      ctx.font = 'bold 120px "Brush Script MT", "Lucida Handwriting", "Comic Sans MS", "Marker Felt", cursive, sans-serif';
+      // Add title with elegant script-like style (darker and bolder)
+      // Use a darker color for better visibility
+      ctx.fillStyle = '#1a1a1a'; // Very dark gray, almost black
+      // Try to use a script font, fallback to available fonts with extra bold weight
+      ctx.font = '900 130px "Brush Script MT", "Lucida Handwriting", "Comic Sans MS", "Marker Felt", cursive, sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
-      ctx.shadowBlur = 15;
-      ctx.shadowOffsetX = 3;
-      ctx.shadowOffsetY = 3;
+      // Stronger shadow for better contrast
+      ctx.shadowColor = 'rgba(255, 255, 255, 0.6)';
+      ctx.shadowBlur = 20;
+      ctx.shadowOffsetX = 2;
+      ctx.shadowOffsetY = 2;
+      ctx.fillText(posterHeading, canvas.width / 2, 140);
+      // Draw text again with slight offset for extra boldness
+      ctx.fillStyle = '#000000'; // Pure black for the second pass
       ctx.fillText(posterHeading, canvas.width / 2, 140);
       ctx.shadowColor = 'transparent';
       ctx.shadowBlur = 0;
@@ -436,6 +441,48 @@ export default function AllPhotos() {
     ctx.restore();
   };
 
+  const handleDownloadSelected = async () => {
+    if (selectedPhotoIds.size === 0) return;
+
+    const selectedPhotos = photos.filter(p => selectedPhotoIds.has(p.id));
+    
+    try {
+      // Download each selected image
+      for (const photo of selectedPhotos) {
+        // Skip videos, only download images
+        if (photo.is_video) continue;
+
+        try {
+          const imageUrl = getImageUrl(photo);
+          const response = await fetch(imageUrl);
+          
+          if (!response.ok) {
+            throw new Error(`Failed to fetch ${photo.filename}`);
+          }
+
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = photo.filename;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
+
+          // Small delay between downloads to avoid browser blocking
+          await new Promise(resolve => setTimeout(resolve, 100));
+        } catch (err) {
+          console.error(`Error downloading ${photo.filename}:`, err);
+          alert(`Failed to download ${photo.filename}. Please try again.`);
+        }
+      }
+    } catch (err) {
+      console.error('Error downloading images:', err);
+      alert('An error occurred while downloading images. Please try again.');
+    }
+  };
+
   const handleBulkDelete = async () => {
     if (selectedPhotoIds.size === 0) return;
     
@@ -580,6 +627,23 @@ export default function AllPhotos() {
           }}>
             {isSelectionMode ? (
               <>
+                {selectedPhotoIds.size > 0 && (
+                  <button
+                    onClick={handleDownloadSelected}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: '#4CAF50',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      marginRight: '10px'
+                    }}
+                  >
+                    📥 Download Selected ({selectedPhotoIds.size})
+                  </button>
+                )}
                 {selectedPhotoIds.size > 0 && selectedPhotoIds.size <= 10 && (
                   <button
                     onClick={createPoster}
@@ -609,7 +673,8 @@ export default function AllPhotos() {
                       border: 'none',
                       borderRadius: '5px',
                       fontWeight: '500',
-                      cursor: deletingPhotoIds.size > 0 ? 'not-allowed' : 'pointer'
+                      cursor: deletingPhotoIds.size > 0 ? 'not-allowed' : 'pointer',
+                      marginRight: '10px'
                     }}
                   >
                     {deletingPhotoIds.size > 0 ? 'Deleting...' : `Delete Selected (${selectedPhotoIds.size})`}
@@ -649,6 +714,25 @@ export default function AllPhotos() {
                 >
                   Select Photos
                 </button>
+                <Link 
+                  href="/slideshow"
+                  onClick={() => {
+                    if (typeof window !== 'undefined') {
+                      setAllowedNavigation('index');
+                    }
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#C5BE77',
+                    color: 'white',
+                    textDecoration: 'none',
+                    borderRadius: '5px',
+                    fontWeight: '500',
+                    marginRight: '10px'
+                  }}
+                >
+                  View Slideshow
+                </Link>
                 <Link href="/admin" style={{
                   padding: '10px 20px',
                   backgroundColor: '#C5BE77',

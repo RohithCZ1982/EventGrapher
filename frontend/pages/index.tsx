@@ -212,12 +212,23 @@ export default function Home() {
       ctx.fillText(line, padding, y);
 
       // Draw "from, Name" at bottom right with handwritten font
-      const fromText = `from, ${stickyName}`;
+      // First measure the name to position "from, " correctly
+      ctx.font = 'bold italic 18px "Caveat", "Comic Sans MS", "Brush Script MT", cursive';
+      const nameWidth = ctx.measureText(stickyName).width;
+      
+      // Draw "from, " in italic (positioned before the name)
       ctx.font = 'italic 18px "Caveat", "Comic Sans MS", "Brush Script MT", cursive';
       ctx.textAlign = 'right';
       ctx.textBaseline = 'bottom';
       ctx.fillStyle = '#666';
-      ctx.fillText(fromText, width - padding, height - padding);
+      const fromPrefix = 'from, ';
+      const fromPrefixX = width - padding - nameWidth;
+      ctx.fillText(fromPrefix, fromPrefixX, height - padding);
+      
+      // Draw Name in bold (positioned at the right edge)
+      ctx.font = 'bold italic 18px "Caveat", "Comic Sans MS", "Brush Script MT", cursive';
+      ctx.fillStyle = '#333';
+      ctx.fillText(stickyName, width - padding, height - padding);
 
       // Convert canvas to blob and then to File
       canvas.toBlob((blob) => {
@@ -469,28 +480,52 @@ export default function Home() {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
             <h2 style={{ margin: 0, fontSize: '24px', color: '#333' }}>Upload Photos & Videos</h2>
-            <Link 
-              href="/gallery" 
-              onClick={() => {
-                if (typeof window !== 'undefined') {
-                  setAllowedNavigation('index');
-                }
-              }}
-              style={{
-                padding: '10px 20px',
-                backgroundColor: '#C5BE77',
-                color: 'white',
-                textDecoration: 'none',
-                borderRadius: '5px',
-                fontWeight: '500',
-                fontSize: '16px',
-                transition: 'background-color 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b5ae67'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#C5BE77'}
-            >
-              View My Photos →
-            </Link>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <Link 
+                href="/slideshow" 
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    setAllowedNavigation('index');
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '5px',
+                  fontWeight: '500',
+                  fontSize: '16px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#45a049'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#4CAF50'}
+              >
+                📺 Slideshow →
+              </Link>
+              <Link 
+                href="/gallery" 
+                onClick={() => {
+                  if (typeof window !== 'undefined') {
+                    setAllowedNavigation('index');
+                  }
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#C5BE77',
+                  color: 'white',
+                  textDecoration: 'none',
+                  borderRadius: '5px',
+                  fontWeight: '500',
+                  fontSize: '16px',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b5ae67'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#C5BE77'}
+              >
+                View My Photos →
+              </Link>
+            </div>
           </div>
 
           <div style={{

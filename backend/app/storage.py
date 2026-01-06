@@ -86,7 +86,12 @@ def _get_content_type(filename: str) -> str:
         ".mkv": "video/x-matroska",
         ".flv": "video/x-flv",
         ".wmv": "video/x-ms-wmv",
-        ".m4v": "video/x-m4v"
+        ".m4v": "video/x-m4v",
+        ".mp3": "audio/mpeg",
+        ".wav": "audio/wav",
+        ".ogg": "audio/ogg",
+        ".m4a": "audio/mp4",
+        ".aac": "audio/aac"
     }
     return content_type_map.get(ext, "application/octet-stream")
 

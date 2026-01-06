@@ -9,6 +9,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 interface PosterSettings {
   poster_heading: string | null;
   background_image_filename: string | null;
+  background_music_filename: string | null;
 }
 
 export default function PosterSettings() {
@@ -20,6 +21,8 @@ export default function PosterSettings() {
   const [selectedBackgroundImage, setSelectedBackgroundImage] = useState<File | null>(null);
   const [backgroundPreviewUrl, setBackgroundPreviewUrl] = useState<string | null>(null);
   const [existingBackgroundImageUrl, setExistingBackgroundImageUrl] = useState<string | null>(null);
+  const [selectedBackgroundMusic, setSelectedBackgroundMusic] = useState<File | null>(null);
+  const [existingBackgroundMusicUrl, setExistingBackgroundMusicUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,6 +63,9 @@ export default function PosterSettings() {
           if (result.data.background_image_filename) {
             setExistingBackgroundImageUrl(`${API_URL}/events/image/${result.data.background_image_filename}`);
           }
+          if (result.data.background_music_filename) {
+            setExistingBackgroundMusicUrl(`${API_URL}/events/audio/${result.data.background_music_filename}`);
+          }
         }
       }
     } catch (err) {
@@ -84,6 +90,18 @@ export default function PosterSettings() {
     }
   };
 
+  const handleBackgroundMusicChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      console.log('Music file selected:', file.name, 'Size:', file.size, 'Type:', file.type);
+      setSelectedBackgroundMusic(file);
+      setExistingBackgroundMusicUrl(null); // Clear existing music URL
+    } else {
+      console.log('No music file selected');
+      setSelectedBackgroundMusic(null);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -95,7 +113,20 @@ export default function PosterSettings() {
       formData.append('poster_heading', posterHeading || 'Our Memories');
       if (selectedBackgroundImage) {
         formData.append('background_image', selectedBackgroundImage);
+        console.log('Adding background image to form:', selectedBackgroundImage.name);
       }
+      if (selectedBackgroundMusic) {
+        formData.append('background_music', selectedBackgroundMusic);
+        console.log('Adding background music to form:', selectedBackgroundMusic.name, 'Size:', selectedBackgroundMusic.size, 'bytes');
+      } else {
+        console.log('No background music file selected');
+      }
+
+      // Log form data contents (for debugging)
+      console.log('FormData contents:');
+      console.log('  poster_heading:', posterHeading || 'Our Memories');
+      console.log('  background_image:', selectedBackgroundImage ? `File(${selectedBackgroundImage.name}, ${selectedBackgroundImage.size} bytes)` : 'none');
+      console.log('  background_music:', selectedBackgroundMusic ? `File(${selectedBackgroundMusic.name}, ${selectedBackgroundMusic.size} bytes)` : 'none');
 
       const response = await fetch(`${API_URL}/events/poster-settings`, {
         method: 'POST',
@@ -108,12 +139,24 @@ export default function PosterSettings() {
       }
 
       const result = await response.json();
+      console.log('Poster settings save response:', result);
       setSuccess(true);
       setSelectedBackgroundImage(null);
       setBackgroundPreviewUrl(null);
+      setSelectedBackgroundMusic(null);
       
-      // Reload to get updated image URL
+      // Reload to get updated image and music URLs
       await loadExistingSettings();
+      
+      // Log the loaded settings to verify music was saved
+      const verifyResponse = await fetch(`${API_URL}/events/poster-settings`);
+      if (verifyResponse.ok) {
+        const verifyResult = await verifyResponse.json();
+        console.log('Verification - Poster settings after save:', verifyResult);
+        if (verifyResult.data) {
+          console.log('Music filename in saved data:', verifyResult.data.background_music_filename);
+        }
+      }
       
       // Clear success message after 3 seconds
       setTimeout(() => setSuccess(false), 3000);
@@ -404,6 +447,90 @@ export default function PosterSettings() {
                         </p>
                         <p style={{ color: '#999', fontSize: '14px', margin: 0 }}>
                           PNG, JPG, GIF up to 10MB
+                        </p>
+                      </div>
+                    )}
+                  </label>
+                </div>
+              </div>
+
+              {/* Background Music Upload */}
+              <div style={{ marginBottom: '30px' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#333',
+                  marginBottom: '10px'
+                }}>
+                  Background Music (for Slideshow)
+                </label>
+                <p style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
+                  Upload an audio file to play as background music during the slideshow
+                </p>
+                <div style={{
+                  border: '2px dashed #e0e0e0',
+                  borderRadius: '12px',
+                  padding: '30px',
+                  textAlign: 'center',
+                  backgroundColor: '#fafafa',
+                  transition: 'all 0.3s'
+                }}>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={handleBackgroundMusicChange}
+                    id="background-music-upload"
+                    style={{ display: 'none' }}
+                  />
+                  <label
+                    htmlFor="background-music-upload"
+                    style={{
+                      cursor: 'pointer',
+                      display: 'block'
+                    }}
+                  >
+                    {existingBackgroundMusicUrl ? (
+                      <div>
+                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>🎵</div>
+                        <p style={{ color: '#666', margin: '5px 0' }}>
+                          Current: {existingBackgroundMusicUrl.split('/').pop()}
+                        </p>
+                        <audio
+                          controls
+                          src={existingBackgroundMusicUrl}
+                          style={{
+                            width: '100%',
+                            maxWidth: '400px',
+                            margin: '15px auto',
+                            display: 'block'
+                          }}
+                        />
+                        <p style={{ color: '#666', margin: '5px 0', fontSize: '14px' }}>
+                          Click to change background music
+                        </p>
+                        <p style={{ color: '#999', fontSize: '12px', margin: '5px 0' }}>
+                          MP3, WAV, OGG, M4A, AAC up to 10MB
+                        </p>
+                      </div>
+                    ) : selectedBackgroundMusic ? (
+                      <div>
+                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>🎵</div>
+                        <p style={{ color: '#666', margin: '5px 0' }}>
+                          Selected: {selectedBackgroundMusic.name}
+                        </p>
+                        <p style={{ color: '#999', fontSize: '12px', margin: '5px 0' }}>
+                          Click to change or upload a different file
+                        </p>
+                      </div>
+                    ) : (
+                      <div>
+                        <div style={{ fontSize: '48px', marginBottom: '10px' }}>🎵</div>
+                        <p style={{ color: '#666', margin: '5px 0' }}>
+                          Click to upload background music
+                        </p>
+                        <p style={{ color: '#999', fontSize: '14px', margin: 0 }}>
+                          MP3, WAV, OGG, M4A, AAC up to 10MB
                         </p>
                       </div>
                     )}
