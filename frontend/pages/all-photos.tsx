@@ -1067,20 +1067,6 @@ export default function AllPhotos() {
                   }}
                 />
               )}
-              <div style={{
-                position: 'absolute',
-                bottom: '-50px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                color: 'white',
-                textAlign: 'center',
-                fontSize: '14px'
-              }}>
-                <p style={{ margin: '5px 0' }}>{selectedPhoto.filename}</p>
-                <p style={{ margin: '5px 0', opacity: 0.8 }}>
-                  {formatFileSize(selectedPhoto.size)} • {formatDate(selectedPhoto.uploaded_at)}
-                </p>
-              </div>
             </div>
           </div>
         )}

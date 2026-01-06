@@ -462,7 +462,8 @@ export default function Slideshow() {
         overflow: 'hidden'
       }}
     >
-      {/* Header with controls */}
+      {/* Header with controls - hidden in fullscreen */}
+      {!isFullscreen && (
       <div style={{
         position: 'absolute',
         top: 0,
@@ -606,6 +607,7 @@ export default function Slideshow() {
           )}
         </div>
       </div>
+      )}
 
       {/* Main image display */}
       <div style={{
@@ -639,71 +641,76 @@ export default function Slideshow() {
         />
       </div>
 
-      {/* Navigation arrows */}
-      <button
-        onClick={goToPrevious}
-        style={{
-          position: 'absolute',
-          left: '20px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          backgroundColor: 'rgba(255,255,255,0.2)',
-          color: 'white',
-          border: '1px solid rgba(255,255,255,0.3)',
-          borderRadius: '50%',
-          width: '60px',
-          height: '60px',
-          fontSize: '24px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(10px)',
-          zIndex: 50,
-          transition: 'all 0.3s'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
-        }}
-      >
-        ‹
-      </button>
-      <button
-        onClick={goToNext}
-        style={{
-          position: 'absolute',
-          right: '20px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          backgroundColor: 'rgba(255,255,255,0.2)',
-          color: 'white',
-          border: '1px solid rgba(255,255,255,0.3)',
-          borderRadius: '50%',
-          width: '60px',
-          height: '60px',
-          fontSize: '24px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backdropFilter: 'blur(10px)',
-          zIndex: 50,
-          transition: 'all 0.3s'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
-        }}
-      >
-        ›
-      </button>
+      {/* Navigation arrows - hidden in fullscreen */}
+      {!isFullscreen && (
+        <>
+          <button
+            onClick={goToPrevious}
+            style={{
+              position: 'absolute',
+              left: '20px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '50%',
+              width: '60px',
+              height: '60px',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backdropFilter: 'blur(10px)',
+              zIndex: 50,
+              transition: 'all 0.3s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+            }}
+          >
+            ‹
+          </button>
+          <button
+            onClick={goToNext}
+            style={{
+              position: 'absolute',
+              right: '20px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: 'white',
+              border: '1px solid rgba(255,255,255,0.3)',
+              borderRadius: '50%',
+              width: '60px',
+              height: '60px',
+              fontSize: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backdropFilter: 'blur(10px)',
+              zIndex: 50,
+              transition: 'all 0.3s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.3)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)';
+            }}
+          >
+            ›
+          </button>
+        </>
+      )}
 
-      {/* Bottom controls and thumbnail strip */}
+      {/* Bottom controls and thumbnail strip - hidden in fullscreen */}
+      {!isFullscreen && (
       <div style={{
         position: 'absolute',
         bottom: 0,
@@ -786,9 +793,10 @@ export default function Slideshow() {
           </p>
         </div>
       </div>
+      )}
 
-      {/* Progress indicator */}
-      {!isPaused && (
+      {/* Progress indicator - hidden in fullscreen */}
+      {!isPaused && !isFullscreen && (
         <div style={{
           position: 'absolute',
           bottom: '0',
